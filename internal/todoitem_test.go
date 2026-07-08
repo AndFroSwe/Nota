@@ -15,6 +15,8 @@ func TestParseStatus(t *testing.T) {
 		{"status OPEN", "- [ ] Open todo", OPEN, false},
 		{"status CANCELED", "- [-] Canceled todo", CANCELED, false},
 		{"Not a todo", "Just some text", NOT_TODO, false},
+		{"Late todo mark", "Text first - [x]", NOT_TODO, false},
+		{"Empty string", "", NOT_TODO, true},
 	}
 
 	for _, tt := range tests {
