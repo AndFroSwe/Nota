@@ -38,12 +38,12 @@ func TestParseStatus(t *testing.T) {
 		want    TodoStatus
 		wantErr bool
 	}{
-		{"status DONE", "- [x] Done todo", DONE, false},
-		{"status OPEN", "- [ ] Open todo", OPEN, false},
-		{"status CANCELED", "- [-] Canceled todo", CANCELED, false},
-		{"Not a todo", "Just some text", NOT_TODO, false},
-		{"Late todo mark", "Text first - [x]", NOT_TODO, false},
-		{"Empty string", "", NOT_TODO, true},
+		{"status DONE", "- [x] Done todo", StatusDone, false},
+		{"status OPEN", "- [ ] Open todo", StatusOpen, false},
+		{"status CANCELED", "- [-] Canceled todo", StatusCanceled, false},
+		{"Not a todo", "Just some text", StatusNotTodo, false},
+		{"Late todo mark", "Text first - [x]", StatusNotTodo, false},
+		{"Empty string", "", StatusNotTodo, true},
 	}
 
 	for _, tt := range tests {

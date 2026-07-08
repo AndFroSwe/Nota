@@ -9,32 +9,33 @@ import (
 type TodoStatus int
 
 const (
-	NOT_TODO TodoStatus = iota // Not a todo
-	OPEN                       // Open todo
-	DONE                       // Done!
-	CANCELED                   // Not intended to be completed
+	StatusNotTodo TodoStatus = iota // Not a todo
+	StatusOpen                       // Open todo
+	StatusDone                       // Done!
+	StatusCanceled                   // Not intended to be completed
 )
 
 type Todo struct {
-	raw      string
-	status   TodoStatus
-	deadline time.Time
+	raw      string     // Raw line input
+	msg      string     // Message line w/o metadata
+	status   TodoStatus // Status of the todo
+	deadline time.Time  // When the todo should be completed
 }
 
 func getStatus(s *string) (TodoStatus, error) {
 	if strings.TrimSpace(*s) == "" {
-		return TodoStatus(NOT_TODO), errors.New("empty string")
+		return TodoStatus(StatusNotTodo), errors.New("empty string")
 	}
 
 	ss := strings.TrimSpace(*s)
 	if strings.HasPrefix(ss, "- [ ]") {
-		return OPEN, nil
+		return StatusOpen, nil
 	} else if strings.HasPrefix(ss, "- [x]") {
-		return DONE, nil
+		return StatusDone, nil
 	} else if strings.HasPrefix(ss, "- [-]") {
-		return CANCELED, nil
+		return StatusCanceled, nil
 	} else {
-		return NOT_TODO, nil
+		return StatusNotTodo, nil
 	}
 }
 
@@ -65,12 +66,12 @@ func getDate(s *string) (time.Time, error) {
 func ParseTodoLine(s *string) (Todo, error) {
 	t := Todo{
 		raw:      *s,
-		status:   NOT_TODO,
+		status:   StatusNotTodo,
 		deadline: time.Time{},
 	}
 
 	status, err := getStatus(s)
-	if status == NOT_TODO {
+	if status == StatusNotTodo {
 		return t, nil
 	}
 
