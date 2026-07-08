@@ -31,6 +31,38 @@ func TestRaw(t *testing.T) {
 	}
 }
 
+func TestMsg(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantRaw string
+		wantMsg string
+		wantErr bool
+	}{
+		{"Empty String", "", "", "", false},
+		{"Not a todo", "Not a todo", "Not a todo", "Not a todo", false},
+		{"Todo with date", "- [ ] <260706> Todo w/ date", "- [ ] <260706> Todo w/ date", "Todo w/ date", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseTodoLine(&tt.input)
+
+			if err != nil && !tt.wantErr {
+				t.Errorf("error parsing '%s': %v", tt.input, err)
+			}
+
+			if got.raw != tt.wantRaw {
+				t.Errorf("incorrect result parsing raw %s. Expected '%v', got '%v'", tt.input, tt.wantRaw, got.raw)
+			}
+
+			if got.msg != tt.wantMsg {
+				t.Errorf("incorrect result parsing msg %s. Expected '%v', got '%v'", tt.input, tt.wantMsg, got.msg)
+			}
+		})
+	}
+}
+
 func TestParseStatus(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -79,7 +111,7 @@ func TestParseDate(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T){
+		t.Run(tt.name, func(t *testing.T) {
 			got, err := ParseTodoLine(&tt.input)
 
 			if err != nil && !tt.wantErr {
