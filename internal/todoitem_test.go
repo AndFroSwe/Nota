@@ -42,6 +42,8 @@ func TestMsg(t *testing.T) {
 		{"Empty String", "", "", "", false},
 		{"Not a todo", "Not a todo", "Not a todo", "Not a todo", false},
 		{"Todo with date", "- [ ] <260706> Todo w/ date", "- [ ] <260706> Todo w/ date", "Todo w/ date", false},
+		{"Todo with date in UTF8", "- [ ] Ögli <260706> Tödå w/ date", "- [ ] Ögli <260706> Tödå w/ date", "Ögli Tödå w/ date", false},
+		{"Todo with date in UTF8 and no space", "- [ ] Ögli<260706> Tödå w/ date", "- [ ] Ögli<260706> Tödå w/ date", "Ögli Tödå w/ date", false},
 	}
 
 	for _, tt := range tests {
@@ -76,6 +78,7 @@ func TestParseStatus(t *testing.T) {
 		{"Not a todo", "Just some text", StatusNotTodo, false},
 		{"Late todo mark", "Text first - [x]", StatusNotTodo, false},
 		{"Empty string", "", StatusNotTodo, true},
+		{"UTF8 String", "- [x] Using ÅÄÖ", StatusDone, false},
 	}
 
 	for _, tt := range tests {

@@ -22,45 +22,57 @@ type Todo struct {
 	deadline time.Time  // When the todo should be completed
 }
 
-func getStatusAndTrim(s string) (TodoStatus, error) {
+func getStatus(s string) (TodoStatus, string, error) {
 	if strings.TrimSpace(s) == "" {
-		return TodoStatus(StatusNotTodo), errors.New("empty string")
+		return TodoStatus(StatusNotTodo), s, errors.New("empty string")
 	}
 
+	// Define todo types
+	const openTodo = "- [ ]"
+	const doneTodo = "- [x]"
+	const canceledTodo = "- [-]"
+
 	ss := strings.TrimSpace(s)
-	if strings.HasPrefix(ss, "- [ ]") {
-		return StatusOpen, nil
-	} else if strings.HasPrefix(ss, "- [x]") {
-		return StatusDone, nil
-	} else if strings.HasPrefix(ss, "- [-]") {
-		return StatusCanceled, nil
+	if strings.HasPrefix(ss, openTodo) {
+		return StatusOpen, s[len(openTodo):], nil
+	} else if strings.HasPrefix(ss, doneTodo) {
+		return StatusDone, s[len(doneTodo):], nil
+	} else if strings.HasPrefix(ss, canceledTodo) {
+		return StatusCanceled, s[len(canceledTodo):], nil
 	} else {
-		return StatusNotTodo, nil
+		return StatusNotTodo, s, nil
 	}
 }
 
-func getDate(s string) (time.Time, error) {
+func getDate(s string) (time.Time, string, error) {
 	if strings.TrimSpace(s) == "" {
-		return time.Time{}, errors.New("empty string")
+		return time.Time{}, s, errors.New("empty string")
 	}
 
-	start := strings.Index(s, "<")
+	const west = "<"
+	const east = ">"
+	// Find date markers
+	start := strings.Index(s, west)
 	if start == -1 {
-		return time.Time{}, errors.New("No <")
+		return time.Time{}, s, errors.New("No " + west)
 	}
 
-	end := strings.Index((s)[start+1:], ">")
+	end := strings.Index(s[start+1:], east)
 	if end == -1 {
-		return time.Time{}, errors.New("No >")
+		return time.Time{}, s, errors.New("No " + east)
 	}
 
-	extracted := (s)[start+1 : start+1+end]
+	extracted := s[start+1 : start+1+end]
 	d, err := time.Parse("060102", extracted)
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, s, err
 	}
 
-	return d, nil
+
+	startMsg := strings.TrimSpace(s[:start])
+	endMsg := strings.TrimSpace(s[start+end+2:])
+	msg := startMsg + " " + endMsg // Remove extracted part
+	return d, msg, nil
 }
 
 func ParseTodoLine(s string) (Todo, error) {
@@ -71,7 +83,7 @@ func ParseTodoLine(s string) (Todo, error) {
 		deadline: time.Time{},
 	}
 
-	status, err := getStatusAndTrim(s)
+	status, s, err := getStatus(s)
 	if status == StatusNotTodo {
 		return t, nil
 	}
@@ -81,11 +93,13 @@ func ParseTodoLine(s string) (Todo, error) {
 	}
 	t.status = status
 
-	d, err := getDate(s)
+	d, s, err := getDate(s)
 	if err != nil {
+		t.msg = strings.TrimSpace(s) // Use current message
 		return t, nil
 	}
 	t.deadline = d
+	t.msg = strings.TrimSpace(s)
 
 	return t, nil
 }
