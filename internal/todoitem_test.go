@@ -18,7 +18,7 @@ func TestRaw(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseTodoLine(&tt.input)
+			got, err := ParseTodoLine(tt.input)
 
 			if err != nil && !tt.wantErr {
 				t.Errorf("error parsing '%s': %v", tt.input, err)
@@ -46,18 +46,18 @@ func TestMsg(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseTodoLine(&tt.input)
+			got, err := ParseTodoLine(tt.input)
 
 			if err != nil && !tt.wantErr {
 				t.Errorf("error parsing '%s': %v", tt.input, err)
 			}
 
 			if got.raw != tt.wantRaw {
-				t.Errorf("incorrect result parsing raw %s. Expected '%v', got '%v'", tt.input, tt.wantRaw, got.raw)
+				t.Errorf("incorrect result parsing raw '%s'. Expected '%v', got '%v'", tt.input, tt.wantRaw, got.raw)
 			}
 
 			if got.msg != tt.wantMsg {
-				t.Errorf("incorrect result parsing msg %s. Expected '%v', got '%v'", tt.input, tt.wantMsg, got.msg)
+				t.Errorf("incorrect result parsing msg '%s'. Expected '%v', got '%v'", tt.input, tt.wantMsg, got.msg)
 			}
 		})
 	}
@@ -80,7 +80,7 @@ func TestParseStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseTodoLine(&tt.input)
+			got, err := ParseTodoLine(tt.input)
 
 			if err != nil && !tt.wantErr {
 				t.Errorf("error parsing '%s': %v", tt.input, err)
@@ -112,7 +112,7 @@ func TestParseDate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseTodoLine(&tt.input)
+			got, err := ParseTodoLine(tt.input)
 
 			if err != nil && !tt.wantErr {
 				t.Errorf("error parsing '%s': %v", tt.input, err)

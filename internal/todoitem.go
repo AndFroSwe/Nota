@@ -9,7 +9,7 @@ import (
 type TodoStatus int
 
 const (
-	StatusNotTodo TodoStatus = iota // Not a todo
+	StatusNotTodo  TodoStatus = iota // Not a todo
 	StatusOpen                       // Open todo
 	StatusDone                       // Done!
 	StatusCanceled                   // Not intended to be completed
@@ -22,12 +22,12 @@ type Todo struct {
 	deadline time.Time  // When the todo should be completed
 }
 
-func getStatus(s *string) (TodoStatus, error) {
-	if strings.TrimSpace(*s) == "" {
+func getStatusAndTrim(s string) (TodoStatus, error) {
+	if strings.TrimSpace(s) == "" {
 		return TodoStatus(StatusNotTodo), errors.New("empty string")
 	}
 
-	ss := strings.TrimSpace(*s)
+	ss := strings.TrimSpace(s)
 	if strings.HasPrefix(ss, "- [ ]") {
 		return StatusOpen, nil
 	} else if strings.HasPrefix(ss, "- [x]") {
@@ -39,22 +39,22 @@ func getStatus(s *string) (TodoStatus, error) {
 	}
 }
 
-func getDate(s *string) (time.Time, error) {
-	if strings.TrimSpace(*s) == "" {
+func getDate(s string) (time.Time, error) {
+	if strings.TrimSpace(s) == "" {
 		return time.Time{}, errors.New("empty string")
 	}
 
-	start := strings.Index(*s, "<")
+	start := strings.Index(s, "<")
 	if start == -1 {
 		return time.Time{}, errors.New("No <")
 	}
 
-	end := strings.Index((*s)[start+1:], ">")
+	end := strings.Index((s)[start+1:], ">")
 	if end == -1 {
 		return time.Time{}, errors.New("No >")
 	}
 
-	extracted := (*s)[start+1 : start+1+end]
+	extracted := (s)[start+1 : start+1+end]
 	d, err := time.Parse("060102", extracted)
 	if err != nil {
 		return time.Time{}, err
@@ -63,14 +63,15 @@ func getDate(s *string) (time.Time, error) {
 	return d, nil
 }
 
-func ParseTodoLine(s *string) (Todo, error) {
+func ParseTodoLine(s string) (Todo, error) {
 	t := Todo{
-		raw:      *s,
+		raw:      s,
+		msg:      s,
 		status:   StatusNotTodo,
 		deadline: time.Time{},
 	}
 
-	status, err := getStatus(s)
+	status, err := getStatusAndTrim(s)
 	if status == StatusNotTodo {
 		return t, nil
 	}
