@@ -22,6 +22,11 @@ type Todo struct {
 	tags     []string   // Togs in the todo
 }
 
+type extractedSurround struct {
+	contents string // Contents between open and close
+	trimmed  string // String with open, close and contents removed
+}
+
 func getStatus(s string) (TodoStatus, string, error) {
 	if strings.TrimSpace(s) == "" {
 		return TodoStatus(StatusNotTodo), s, nil
@@ -45,65 +50,71 @@ func getStatus(s string) (TodoStatus, string, error) {
 	}
 }
 
+func extractSurroundAndTrim(s string, openMarker string, closeMarker string) extractedSurround {
+	// Find open marker
+	start := strings.Index(s, openMarker)
+	if start == -1 {
+		return extractedSurround{"", s}
+	}
+
+	// Find close marker
+	end := strings.Index(s[start+1:], closeMarker)
+	if end == -1 {
+		return extractedSurround{"", s}
+	}
+
+	// Found markers, extract contents
+	extracted := s[start+1 : start+1+end]
+
+	return extractedSurround{
+		contents: extracted,
+		trimmed:  strings.TrimSpace(s[:start]) + " " + strings.TrimSpace(s[start+end+2:]),
+	}
+}
+
 func getDate(s string) (time.Time, string, error) {
 	if strings.TrimSpace(s) == "" {
 		return time.Time{}, s, nil
 	}
 
-	const west = "<"
-	const east = ">"
+	extracted := extractSurroundAndTrim(s, "<", ">")
+	if extracted.contents == "" {
+		return time.Time{}, s, nil
+	}
+
 	// Find date markers
-	start := strings.Index(s, west)
-	if start == -1 {
-		return time.Time{}, s, nil
-	}
-
-	end := strings.Index(s[start+1:], east)
-	if end == -1 {
-		return time.Time{}, s, nil
-	}
-
-	extracted := s[start+1 : start+1+end]
-	d, err := time.Parse("060102", extracted)
+	d, err := time.Parse("060102", extracted.contents)
 	if err != nil {
 		return time.Time{}, s, err
 	}
 
-	startMsg := strings.TrimSpace(s[:start])
-	endMsg := strings.TrimSpace(s[start+end+2:])
-	msg := startMsg + " " + endMsg // Remove extracted part
-
-	return d, msg, nil
+	return d, extracted.trimmed, nil
 }
 
+// getTags extracts tags tag lists enclosed in curly braces separated with comma from a todo line
+// Returns a string slice with tags or nil when no was found, a string with the tag syntax removed and an error
 func getTags(s string) ([]string, string, error) {
+	// Exit early on empty string
 	if strings.TrimSpace(s) == "" {
-		return []string{}, s, nil
+		return nil, s, nil
 	}
 
-	const west = "{"
-	const east = "}"
+	// Extract tags
+	var tags []string
+	for {
+		extracted := extractSurroundAndTrim(s, "{", "}")
+		if extracted.contents == "" {
+			break
+		}
 
-	start := strings.Index(s, west) // Find start of tag marker
-	if start == -1 {
-		return []string{}, s, nil
+		tags = append(tags, strings.Split(extracted.contents, ",")...)
+		s = extracted.trimmed
 	}
 
-	end := strings.Index(s[start+1:], east) // Find end of tag marker
-	if end == -1 {
-		return []string{}, s, nil
-	}
-
-	// Found a marker, extract tags
-	const sep = "," // Tag separator
-	tags := strings.Split(s[start+1:start+end+1], sep)
 	// Trim whitespace from tags
 	for i := range tags {
 		tags[i] = strings.TrimSpace(tags[i])
 	}
-
-	// Remove tag from msg
-	s = strings.TrimSpace(s[:start]) + " " + strings.TrimSpace(s[start+end+2:])
 
 	return tags, s, nil
 }
