@@ -14,16 +14,16 @@ const (
 	StatusCanceled                   // Not intended to be completed
 )
 
-// A todo 
+// A todo
 type Todo struct {
-	raw      string     // Raw line input
-	msg      string     // Message line w/o metadata
-	status   TodoStatus // Status of the todo
-	deadline time.Time  // When the todo should be completed
-	tags     []string   // Togs in the todo
+	Raw      string     // Raw line input
+	Msg      string     // Message line w/o metadata
+	Status   TodoStatus // Status of the todo
+	Deadline time.Time  // When the todo should be completed
+	Tags     []string   // Togs in the todo
 }
 
-// extractedSurround is the return type when extracting tags, dates, responsibles or other types that 
+// extractedSurround is the return type when extracting tags, dates, responsibles or other types that
 // are kept surrounded by symbols
 type extractedSurround struct {
 	contents string // Contents between open and close
@@ -149,9 +149,9 @@ func getResponsible(s string) ([]string, string, error) {
 
 func ParseTodoLine(s string) (Todo, error) {
 	t := Todo{
-		raw:    s,
-		msg:    s,
-		status: StatusNotTodo,
+		Raw:    s,
+		Msg:    s,
+		Status: StatusNotTodo,
 	}
 
 	// Get status and check if it is a todo
@@ -166,27 +166,27 @@ func ParseTodoLine(s string) (Todo, error) {
 	}
 
 	// Was a todo, save status
-	t.status = status
+	t.Status = status
 
 	// Extract the date
 	d, s, err := getDate(s)
 	if err != nil {
-		t.msg = strings.TrimSpace(s) // Use current message
+		t.Msg = strings.TrimSpace(s) // Use current message
 		return t, nil
 	}
 
 	// Had a date, save it
-	t.deadline = d
+	t.Deadline = d
 
 	// Extract the tags
 	tags, s, err := getTags(s)
 	if err != nil {
-		t.msg = strings.TrimSpace(s) // Use current message
+		t.Msg = strings.TrimSpace(s) // Use current message
 	}
 
 	// Save the values
-	t.tags = tags
-	t.msg = strings.TrimSpace(s)
+	t.Tags = tags
+	t.Msg = strings.TrimSpace(s)
 
 	return t, nil
 }

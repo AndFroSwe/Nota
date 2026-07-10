@@ -1,3 +1,3 @@
-module godoto
+module gotodo
 
 go 1.26.4
