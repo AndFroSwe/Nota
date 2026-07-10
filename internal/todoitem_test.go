@@ -161,3 +161,31 @@ func TestParseTag(t *testing.T) {
 		})
 	}
 }
+
+func TestParseResponsible(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    []string
+		wantErr bool
+	}{
+		{"Not todo", "Not todo [[person]]", nil, false},
+		{"No responsible", "- [ ] No responsible", nil, false},
+		{"One responsible", "- [x] One Responsible [[af]]", []string{"af"}, false},
+		{"Two responsible", "- [-] Two peeps [p1, fn ln]", []string{"p1", "fn ln"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _, err := getResponsible(tt.input)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("error parsing '%s': %v", tt.input, err)
+			}
+
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("incorrect result parsing '%s': want '%v', got '%v'", tt.input, got, tt.want)
+			}
+		})
+	}
+}

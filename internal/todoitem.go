@@ -119,6 +119,13 @@ func getTags(s string) ([]string, string, error) {
 	return tags, s, nil
 }
 
+// getResponsible takes a todo string and extracts persons responsible for executing a todo.
+// Responsible are marked by [[ ]] and delimited by ,.
+// Returns string slice with responsible, string with markers stripped out, error on error.
+func getResponsible(s string) ([]string, string, error) {
+	return nil, "", nil
+}
+
 func ParseTodoLine(s string) (Todo, error) {
 	t := Todo{
 		raw:    s,
