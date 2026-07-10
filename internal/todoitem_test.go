@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"slices"
 	"testing"
 	"time"
 )
@@ -12,7 +13,7 @@ func TestRaw(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		{"Empty string", "", "", true},
+		{"Empty string", "", "", false},
 		{"Some input", "Some Input", "Some Input", false},
 	}
 
@@ -20,7 +21,7 @@ func TestRaw(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ParseTodoLine(tt.input)
 
-			if err != nil && !tt.wantErr {
+			if (err != nil) != tt.wantErr {
 				t.Errorf("error parsing '%s': %v", tt.input, err)
 			}
 
@@ -44,13 +45,14 @@ func TestMsg(t *testing.T) {
 		{"Todo with date", "- [ ] <260706> Todo w/ date", "- [ ] <260706> Todo w/ date", "Todo w/ date", false},
 		{"Todo with date in UTF8", "- [ ] Ögli <260706> Tödå w/ date", "- [ ] Ögli <260706> Tödå w/ date", "Ögli Tödå w/ date", false},
 		{"Todo with date in UTF8 and no space", "- [ ] Ögli<260706> Tödå w/ date", "- [ ] Ögli<260706> Tödå w/ date", "Ögli Tödå w/ date", false},
+		{"Todo with tags", "- [x] A {tag1} tag", "- [x] A {tag1} tag", "A tag", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ParseTodoLine(tt.input)
 
-			if err != nil && !tt.wantErr {
+			if (err != nil) != tt.wantErr {
 				t.Errorf("error parsing '%s': %v", tt.input, err)
 			}
 
@@ -77,20 +79,20 @@ func TestParseStatus(t *testing.T) {
 		{"status CANCELED", "- [-] Canceled todo", StatusCanceled, false},
 		{"Not a todo", "Just some text", StatusNotTodo, false},
 		{"Late todo mark", "Text first - [x]", StatusNotTodo, false},
-		{"Empty string", "", StatusNotTodo, true},
+		{"Empty string", "", StatusNotTodo, false},
 		{"UTF8 String", "- [x] Using ÅÄÖ", StatusDone, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseTodoLine(tt.input)
+			got, _, err := getStatus(tt.input)
 
-			if err != nil && !tt.wantErr {
+			if (err != nil) != tt.wantErr {
 				t.Errorf("error parsing '%s': %v", tt.input, err)
 			}
 
-			if got.status != tt.want {
-				t.Errorf("incorrect result parsing '%s'. Expected %v, got %v", tt.input, tt.want, got.status)
+			if got != tt.want {
+				t.Errorf("incorrect result parsing '%s'. Expected %v, got %v", tt.input, tt.want, got)
 			}
 		})
 	}
@@ -117,12 +119,44 @@ func TestParseDate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ParseTodoLine(tt.input)
 
-			if err != nil && !tt.wantErr {
+			if (err != nil) != tt.wantErr {
 				t.Errorf("error parsing '%s': %v", tt.input, err)
 			}
 
 			if got.deadline != tt.want {
 				t.Errorf("incorrect result parsing '%s'. Expected %v, got %v", tt.input, tt.want, got.deadline)
+			}
+		})
+	}
+}
+
+func TestParseTag(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    []string
+		wantErr bool
+	}{
+		{"No tags", "- [x] No tags here", []string{}, false},
+		{"One tag", "- [ ] One tag {tag1} here", []string{"tag1"}, false},
+		{"Two tags", "- [ ] Two tags {tag1, tag2} here", []string{"tag1", "tag2"}, false},
+		{"Tag with space", "- [ ] Spaced tag {tag space} in this", []string{"tag space"}, false},
+		{"Two tag sections", "- [x] First {tag1} and second {tag2, tag 3}", []string{"tag1", "tag2", "tag 3"}, false},
+		{"Not todo but has tags", "Not a todo but {my_tag} have tag", []string{"my_tag"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _, err := getTags(tt.input)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("error parsing '%s': %v", tt.input, err)
+				return
+			}
+
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("incorrect result parsing '%s': want '%v', got '%v'", tt.input, tt.want, got)
+				return
 			}
 		})
 	}
