@@ -81,6 +81,7 @@ func TestParseStatus(t *testing.T) {
 		{"Late todo mark", "Text first - [x]", StatusNotTodo, false},
 		{"Empty string", "", StatusNotTodo, false},
 		{"UTF8 String", "- [x] Using ÅÄÖ", StatusDone, false},
+		{"Not a todo w/ tags", "Not todo [[person]]", StatusNotTodo, false},
 	}
 
 	for _, tt := range tests {
@@ -169,10 +170,9 @@ func TestParseResponsible(t *testing.T) {
 		want    []string
 		wantErr bool
 	}{
-		{"Not todo", "Not todo [[person]]", nil, false},
 		{"No responsible", "- [ ] No responsible", nil, false},
 		{"One responsible", "- [x] One Responsible [[af]]", []string{"af"}, false},
-		{"Two responsible", "- [-] Two peeps [p1, fn ln]", []string{"p1", "fn ln"}, false},
+		{"Two responsible", "- [-] Two peeps [[p1, fn ln]] after", []string{"p1", "fn ln"}, false},
 	}
 
 	for _, tt := range tests {
@@ -184,7 +184,7 @@ func TestParseResponsible(t *testing.T) {
 			}
 
 			if !slices.Equal(got, tt.want) {
-				t.Errorf("incorrect result parsing '%s': want '%v', got '%v'", tt.input, got, tt.want)
+				t.Errorf("incorrect result parsing '%s': want '%v', got '%v'", tt.input, tt.want, got)
 			}
 		})
 	}

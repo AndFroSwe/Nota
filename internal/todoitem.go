@@ -14,6 +14,7 @@ const (
 	StatusCanceled                   // Not intended to be completed
 )
 
+// A todo 
 type Todo struct {
 	raw      string     // Raw line input
 	msg      string     // Message line w/o metadata
@@ -22,6 +23,8 @@ type Todo struct {
 	tags     []string   // Togs in the todo
 }
 
+// extractedSurround is the return type when extracting tags, dates, responsibles or other types that 
+// are kept surrounded by symbols
 type extractedSurround struct {
 	contents string // Contents between open and close
 	trimmed  string // String with open, close and contents removed
@@ -58,17 +61,19 @@ func extractSurroundAndTrim(s string, openMarker string, closeMarker string) ext
 	}
 
 	// Find close marker
-	end := strings.Index(s[start+1:], closeMarker)
+	openSize := len(openMarker)
+	closeSize := len(closeMarker)
+	end := strings.Index(s[start+openSize:], closeMarker)
 	if end == -1 {
 		return extractedSurround{"", s}
 	}
 
 	// Found markers, extract contents
-	extracted := s[start+1 : start+1+end]
+	extracted := s[start+openSize : start+end+openSize]
 
 	return extractedSurround{
 		contents: extracted,
-		trimmed:  strings.TrimSpace(s[:start]) + " " + strings.TrimSpace(s[start+end+2:]),
+		trimmed:  strings.TrimSpace(s[:start]) + " " + strings.TrimSpace(s[start+end+openSize+closeSize:]),
 	}
 }
 
@@ -123,7 +128,23 @@ func getTags(s string) ([]string, string, error) {
 // Responsible are marked by [[ ]] and delimited by ,.
 // Returns string slice with responsible, string with markers stripped out, error on error.
 func getResponsible(s string) ([]string, string, error) {
-	return nil, "", nil
+	var responsibles []string
+	for {
+		extracted := extractSurroundAndTrim(s, "[[", "]]")
+		if extracted.contents == "" {
+			break
+		}
+
+		responsibles = append(responsibles, strings.Split(extracted.contents, ",")...)
+		s = extracted.trimmed
+	}
+
+	// Trim whitespace
+	for i := range responsibles {
+		responsibles[i] = strings.TrimSpace(responsibles[i])
+	}
+
+	return responsibles, s, nil
 }
 
 func ParseTodoLine(s string) (Todo, error) {
@@ -139,6 +160,7 @@ func ParseTodoLine(s string) (Todo, error) {
 		return t, err
 	}
 
+	// Don't parse if not todo
 	if status == StatusNotTodo {
 		return t, nil
 	}
