@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"gotodo/internal"
 	"os"
@@ -10,8 +11,27 @@ import (
 )
 
 func main() {
-	dir := "."
+	// Command line variables
+	var dir string
+	flag.StringVar(&dir, "d", ".", "Directory to parse")
 
+	var recurse bool
+	flag.BoolVar(&recurse, "r", false, "Recurse subdirectories")
+
+	flag.Parse()
+
+	// Get todos
+	todos, err := getTodos(dir, recurse)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error parsing todos: %v", err)
+		return
+	}
+
+	fmt.Printf("Found %d todos\n", len(todos))
+}
+
+func getTodos(dir string, recurse bool) ([]internal.Todo, error) {
+	recurse = false // Placeholder use
 	var todos []internal.Todo
 	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -30,14 +50,10 @@ func main() {
 	})
 
 	if err != nil {
-		fmt.Printf("error walking directory: %v", err)
+		return nil, err
 	}
 
-	fmt.Printf("Found %d todos\n", len(todos))
-
-	for i, t := range todos {
-		fmt.Printf("%d: %s\n", i, t.Raw)
-	}
+	return todos, nil
 }
 
 func parseFile(path string, todos *[]internal.Todo) error {

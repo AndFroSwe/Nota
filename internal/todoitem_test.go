@@ -25,8 +25,8 @@ func TestRaw(t *testing.T) {
 				t.Errorf("error parsing '%s': %v", tt.input, err)
 			}
 
-			if got.raw != tt.want {
-				t.Errorf("incorrect result parsing %s. Expected %v, got %v", tt.input, tt.want, got.raw)
+			if got.Raw != tt.want {
+				t.Errorf("incorrect result parsing %s. Expected %v, got %v", tt.input, tt.want, got.Raw)
 			}
 		})
 	}
@@ -56,12 +56,12 @@ func TestMsg(t *testing.T) {
 				t.Errorf("error parsing '%s': %v", tt.input, err)
 			}
 
-			if got.raw != tt.wantRaw {
-				t.Errorf("incorrect result parsing raw '%s'. Expected '%v', got '%v'", tt.input, tt.wantRaw, got.raw)
+			if got.Raw != tt.wantRaw {
+				t.Errorf("incorrect result parsing raw '%s'. Expected '%v', got '%v'", tt.input, tt.wantRaw, got.Raw)
 			}
 
-			if got.msg != tt.wantMsg {
-				t.Errorf("incorrect result parsing msg '%s'. Expected '%v', got '%v'", tt.input, tt.wantMsg, got.msg)
+			if got.Msg != tt.wantMsg {
+				t.Errorf("incorrect result parsing msg '%s'. Expected '%v', got '%v'", tt.input, tt.wantMsg, got.Msg)
 			}
 		})
 	}
@@ -124,8 +124,8 @@ func TestParseDate(t *testing.T) {
 				t.Errorf("error parsing '%s': %v", tt.input, err)
 			}
 
-			if got.deadline != tt.want {
-				t.Errorf("incorrect result parsing '%s'. Expected %v, got %v", tt.input, tt.want, got.deadline)
+			if got.Deadline != tt.want {
+				t.Errorf("incorrect result parsing '%s'. Expected %v, got %v", tt.input, tt.want, got.Deadline)
 			}
 		})
 	}
@@ -188,4 +188,15 @@ func TestParseResponsible(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAvailableStatuses checks that available statuses match with print function
+func TestAvailableStatuses(t *testing.T) {
+	got := len(GetAvailableStatuses())
+	want := int(NumStatuses)
+
+	if got != want {
+		t.Errorf("incorrect GetAvailableStatuses: want %d, got %d", want, got)
+	}
+
 }

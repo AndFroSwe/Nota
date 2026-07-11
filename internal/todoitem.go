@@ -12,7 +12,12 @@ const (
 	StatusOpen                       // Open todo
 	StatusDone                       // Done!
 	StatusCanceled                   // Not intended to be completed
+	NumStatuses                      // Number of statuses, must keep this last
 )
+
+func GetAvailableStatuses() []string {
+	return []string{"not-todo", "open", "done", "canceled"}
+}
 
 // A todo
 type Todo struct {
