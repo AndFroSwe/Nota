@@ -31,7 +31,6 @@ func main() {
 }
 
 func getTodos(dir string, recurse bool) ([]internal.Todo, error) {
-	recurse = false // Placeholder use
 	var todos []internal.Todo
 	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -39,6 +38,9 @@ func getTodos(dir string, recurse bool) ([]internal.Todo, error) {
 		}
 
 		if d.IsDir() {
+			if !recurse && path != dir {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 
