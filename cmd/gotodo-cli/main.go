@@ -4,13 +4,15 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/jedib0t/go-pretty/v6/table"
-	"golang.org/x/term"
 	"gotodo/internal"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
+
+	"github.com/jedib0t/go-pretty/v6/table"
+	"golang.org/x/term"
 )
 
 func main() {
@@ -36,11 +38,12 @@ func main() {
 
 	// Check terminal width
 	w, _, err := term.GetSize(0)
+	const wTotMin = 120
 	const wDate = 12
+	const wResp = 12
 	const wTagsMin = 18
-	const wMsgMin = 50
+	const wMsgMin = wTotMin - wDate - wResp - wTagsMin // Use all available space
 
-	wTotMin := wDate + wTagsMin + wMsgMin
 	if w < wTotMin {
 		fmt.Fprintf(os.Stderr, "Terminal too narrow for output (%d < %d)", w, wTotMin)
 		return
@@ -56,15 +59,15 @@ func main() {
 	// Print a table
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"Activity", "Tags", "Deadline"})
+	t.AppendHeader(table.Row{"Activity", "Tags", "Responsible", "Deadline"})
 	for _, todo := range todos {
-		t.AppendRow(table.Row{todo.Msg, todo.Tags, todo.Deadline.Format("2006-01-02")})
+		t.AppendRow(table.Row{todo.Msg, todo.Tags, todo.Responsible, todo.Deadline})
 	}
 
 	// Print correct format
 	const ratioMsg = 0.7
 	wTags := max(int(float32(1.0-ratioMsg)*float32(w-wDate)), wTagsMin)
-	wMsg := w - wTags - wDate // Use as much space as possible
+	wMsg := w - wTags - wDate // Use as much space as possible for activity message
 
 	sliceTransformer := func(val any) string {
 		if s, ok := val.([]string); ok {
@@ -74,6 +77,14 @@ func main() {
 		return fmt.Sprintf("%v", val) // Fallback
 	}
 
+	dateTransformer := func(val any) string {
+		if d, ok := val.(time.Time); ok {
+			return d.Format("2006-01-02")
+		}
+		return fmt.Sprintf("%v", val)
+	}
+
+	// Configure table style
 	t.SetColumnConfigs([]table.ColumnConfig{
 		{
 			Name:     "Activity",
@@ -85,10 +96,18 @@ func main() {
 			Transformer: sliceTransformer,
 		},
 		{
-			Name:     "Deadline",
-			WidthMax: wDate,
+			Name:        "Responsible",
+			WidthMax:    wResp,
+			Transformer: sliceTransformer,
+		},
+		{
+			Name:        "Deadline",
+			WidthMax:    wDate,
+			Transformer: dateTransformer,
 		},
 	})
+
+	// Render to correct output
 	switch outputFormat {
 	case "stdout":
 		t.Render()
@@ -102,6 +121,7 @@ func main() {
 	}
 }
 
+// getTodos finds the files to check and calls parsing on them
 func getTodos(dir string, recurse bool) ([]internal.Todo, error) {
 	var todos []internal.Todo
 	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {

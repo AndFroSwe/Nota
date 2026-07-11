@@ -26,6 +26,7 @@ type Todo struct {
 	Status   TodoStatus // Status of the todo
 	Deadline time.Time  // When the todo should be completed
 	Tags     []string   // Togs in the todo
+	Responsible []string // Responsible for executing todo
 }
 
 // extractedSurround is the return type when extracting tags, dates, responsibles or other types that
