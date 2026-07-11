@@ -21,12 +21,12 @@ func GetAvailableStatuses() []string {
 
 // A todo
 type Todo struct {
-	Raw      string     // Raw line input
-	Msg      string     // Message line w/o metadata
-	Status   TodoStatus // Status of the todo
-	Deadline time.Time  // When the todo should be completed
-	Tags     []string   // Togs in the todo
-	Responsible []string // Responsible for executing todo
+	Raw         string     // Raw line input
+	Msg         string     // Message line w/o metadata
+	Status      TodoStatus // Status of the todo
+	Deadline    time.Time  // When the todo should be completed
+	Tags        []string   // Togs in the todo
+	Responsible []string   // Responsible for executing todo
 }
 
 // extractedSurround is the return type when extracting tags, dates, responsibles or other types that
@@ -83,6 +83,7 @@ func extractSurroundAndTrim(s string, openMarker string, closeMarker string) ext
 	}
 }
 
+// BUG: All todos get a default date. Collides with having <?> or no date
 func getDate(s string) (time.Time, string, error) {
 	if strings.TrimSpace(s) == "" {
 		return time.Time{}, s, nil
@@ -188,10 +189,19 @@ func ParseTodoLine(s string) (Todo, error) {
 	tags, s, err := getTags(s)
 	if err != nil {
 		t.Msg = strings.TrimSpace(s) // Use current message
+		return t, nil
 	}
-
-	// Save the values
 	t.Tags = tags
+
+	// Extract responsibles
+	resps, s, err := getResponsible(s)
+	if err != nil {
+		t.Msg = strings.TrimSpace(s)
+		return t, nil
+	}
+	t.Responsible = resps
+
+	// Add the final trimmed message
 	t.Msg = strings.TrimSpace(s)
 
 	return t, nil

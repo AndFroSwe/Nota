@@ -15,6 +15,8 @@ import (
 	"golang.org/x/term"
 )
 
+// TODO: Add filtering
+// TODO: Add coloring of deadline based on date
 func main() {
 	outputFormats := []string{"stdout", "color", "markdown"}
 
@@ -45,14 +47,14 @@ func main() {
 	const wMsgMin = wTotMin - wDate - wResp - wTagsMin // Use all available space
 
 	if w < wTotMin {
-		fmt.Fprintf(os.Stderr, "Terminal too narrow for output (%d < %d)", w, wTotMin)
+		fmt.Fprintf(os.Stderr, "Terminal too narrow for output (%d < %d)\n", w, wTotMin)
 		return
 	}
 
 	// Get todos
 	todos, err := getTodos(dir, recurse)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error parsing todos: %v", err)
+		fmt.Fprintf(os.Stderr, "error parsing todos: %v\n", err)
 		return
 	}
 
@@ -106,6 +108,9 @@ func main() {
 			Transformer: dateTransformer,
 		},
 	})
+	t.SortBy([]table.SortBy{
+		{Name: "Deadline", Mode: table.Asc},
+	})
 
 	// Render to correct output
 	switch outputFormat {
@@ -115,7 +120,7 @@ func main() {
 		t.RenderMarkdown()
 	case "color":
 		{
-			t.SetStyle(table.StyleColoredBlackOnBlueWhite)
+			t.SetStyle(table.StyleColoredDark)
 			t.Render()
 		}
 	}
