@@ -56,8 +56,7 @@ func main() {
 	// Print a table
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"Msg", "Tags", "Deadline"})
-
+	t.AppendHeader(table.Row{"Activity", "Tags", "Deadline"})
 	for _, todo := range todos {
 		t.AppendRow(table.Row{todo.Msg, todo.Tags, todo.Deadline.Format("2006-01-02")})
 	}
@@ -67,14 +66,23 @@ func main() {
 	wTags := max(int(float32(1.0-ratioMsg)*float32(w-wDate)), wTagsMin)
 	wMsg := w - wTags - wDate // Use as much space as possible
 
+	sliceTransformer := func(val any) string {
+		if s, ok := val.([]string); ok {
+			return strings.Join(s, ",")
+		}
+
+		return fmt.Sprintf("%v", val) // Fallback
+	}
+
 	t.SetColumnConfigs([]table.ColumnConfig{
 		{
-			Name:     "Msg",
+			Name:     "Activity",
 			WidthMax: wMsg,
 		},
 		{
-			Name:     "Tags",
-			WidthMax: wTags,
+			Name:        "Tags",
+			WidthMax:    wTags,
+			Transformer: sliceTransformer,
 		},
 		{
 			Name:     "Deadline",

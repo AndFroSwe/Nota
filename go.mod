@@ -3,7 +3,6 @@ module gotodo
 go 1.26.4
 
 require (
-	github.com/charmbracelet/x/term v0.2.2
 	github.com/jedib0t/go-pretty/v6 v6.8.2
 	golang.org/x/term v0.29.0
 )
