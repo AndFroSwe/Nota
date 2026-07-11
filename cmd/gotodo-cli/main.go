@@ -4,13 +4,18 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"github.com/jedib0t/go-pretty/v6/table"
+	"golang.org/x/term"
 	"gotodo/internal"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
 func main() {
+	outputFormats := []string{"stdout", "color", "markdown"}
+
 	// Command line variables
 	var dir string
 	flag.StringVar(&dir, "d", ".", "Directory to parse")
@@ -18,7 +23,28 @@ func main() {
 	var recurse bool
 	flag.BoolVar(&recurse, "r", false, "Recurse subdirectories")
 
+	var outputFormat string
+	flag.StringVar(&outputFormat, "f", "stdout", fmt.Sprintf("Output format %v", outputFormats))
+
 	flag.Parse()
+
+	// Check input
+	if !slices.Contains(outputFormats, outputFormat) {
+		fmt.Fprintf(os.Stderr, "Incorrect format: %s. Allowed: %v\n", outputFormat, outputFormats)
+		return
+	}
+
+	// Check terminal width
+	w, _, err := term.GetSize(0)
+	const wDate = 12
+	const wTagsMin = 18
+	const wMsgMin = 50
+
+	wTotMin := wDate + wTagsMin + wMsgMin
+	if w < wTotMin {
+		fmt.Fprintf(os.Stderr, "Terminal too narrow for output (%d < %d)", w, wTotMin)
+		return
+	}
 
 	// Get todos
 	todos, err := getTodos(dir, recurse)
@@ -27,7 +53,45 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Found %d todos\n", len(todos))
+	// Print a table
+	t := table.NewWriter()
+	t.SetOutputMirror(os.Stdout)
+	t.AppendHeader(table.Row{"Msg", "Tags", "Deadline"})
+
+	for _, todo := range todos {
+		t.AppendRow(table.Row{todo.Msg, todo.Tags, todo.Deadline.Format("2006-01-02")})
+	}
+
+	// Print correct format
+	const ratioMsg = 0.7
+	wTags := max(int(float32(1.0-ratioMsg)*float32(w-wDate)), wTagsMin)
+	wMsg := w - wTags - wDate // Use as much space as possible
+
+	t.SetColumnConfigs([]table.ColumnConfig{
+		{
+			Name:     "Msg",
+			WidthMax: wMsg,
+		},
+		{
+			Name:     "Tags",
+			WidthMax: wTags,
+		},
+		{
+			Name:     "Deadline",
+			WidthMax: wDate,
+		},
+	})
+	switch outputFormat {
+	case "stdout":
+		t.Render()
+	case "markdown":
+		t.RenderMarkdown()
+	case "color":
+		{
+			t.SetStyle(table.StyleColoredBlackOnBlueWhite)
+			t.Render()
+		}
+	}
 }
 
 func getTodos(dir string, recurse bool) ([]internal.Todo, error) {
