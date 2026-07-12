@@ -30,6 +30,9 @@ func main() {
 	var outputFormat string
 	flag.StringVar(&outputFormat, "f", "stdout", fmt.Sprintf("Output format %v", outputFormats))
 
+	var useNerdfont bool
+	flag.BoolVar(&useNerdfont, "u", true, "Use nerdfont symbols. May need to be false on older terminals")
+
 	flag.Parse()
 
 	// Check input
@@ -61,15 +64,46 @@ func main() {
 	// Print a table
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"Activity", "Tags", "Responsible", "Deadline"})
+	t.AppendHeader(table.Row{"T", "Activity", "Tags", "Responsible", "Deadline"})
 	for _, todo := range todos {
-		t.AppendRow(table.Row{todo.Msg, todo.Tags, todo.Responsible, todo.Deadline})
+		t.AppendRow(table.Row{todo.Status, todo.Msg, todo.Tags, todo.Responsible, todo.Deadline})
 	}
 
 	// Print correct format
 	const ratioMsg = 0.7
 	wTags := max(int(float32(1.0-ratioMsg)*float32(w-wDate)), wTagsMin)
 	wMsg := w - wTags - wDate // Use as much space as possible for activity message
+
+	// Helper to print todo
+	todoTransformer := func(val any) string {
+		if t, ok := val.(internal.TodoStatus); ok {
+			if useNerdfont {
+				switch t {
+				case internal.StatusNotTodo:
+					return ""
+				case internal.StatusOpen:
+					return " "
+				case internal.StatusDone:
+					return "󰄬"
+				case internal.StatusCanceled:
+					return "󰜺"
+				}
+			} else {
+				switch t {
+				case internal.StatusNotTodo:
+					return "E"
+				case internal.StatusOpen:
+					return " "
+				case internal.StatusDone:
+					return "x"
+				case internal.StatusCanceled:
+					return "-"
+				}
+			}
+		}
+
+		return fmt.Sprintf("%v", val) // Fallback
+	}
 
 	// Helper to print string slices
 	sliceTransformer := func(val any) string {
@@ -99,6 +133,11 @@ func main() {
 
 	// Configure table style
 	t.SetColumnConfigs([]table.ColumnConfig{
+		{
+			Name:        "T",
+			WidthMax:    3,
+			Transformer: todoTransformer,
+		},
 		{
 			Name:     "Activity",
 			WidthMax: wMsg,
