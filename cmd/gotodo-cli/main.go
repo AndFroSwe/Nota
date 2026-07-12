@@ -71,6 +71,7 @@ func main() {
 	wTags := max(int(float32(1.0-ratioMsg)*float32(w-wDate)), wTagsMin)
 	wMsg := w - wTags - wDate // Use as much space as possible for activity message
 
+	// Helper to print string slices
 	sliceTransformer := func(val any) string {
 		if s, ok := val.([]string); ok {
 			return strings.Join(s, ",")
@@ -79,10 +80,20 @@ func main() {
 		return fmt.Sprintf("%v", val) // Fallback
 	}
 
+	// Helper to interpret dates
 	dateTransformer := func(val any) string {
-		if d, ok := val.(time.Time); ok {
+		if d, ok := val.(*time.Time); ok {
+			if d == nil {
+				return ""
+			}
+
+			if internal.IsTBD(*d) {
+				return "TBD"
+			}
+
 			return d.Format("2006-01-02")
 		}
+
 		return fmt.Sprintf("%v", val)
 	}
 

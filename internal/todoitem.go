@@ -240,3 +240,8 @@ func ParseTodoLine(s string) (Todo, error) {
 
 	return t, nil
 }
+
+// IsTBD is a simple helper that checks if a date is TBD
+func IsTBD(d time.Time) bool {
+	return d.Equal(time.Time{})
+}
