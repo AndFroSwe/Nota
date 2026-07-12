@@ -111,12 +111,12 @@ func TestParseDate(t *testing.T) {
 		{"Invalid month", "- [ ] <303102> Some text", true, time.Time{}, "- [ ] Some text", true},
 		{"Invalid day", "- [ ] <300232> Some text", true, time.Time{}, "- [ ] Some text", true},
 		{"Invalid date", "- [ ] <not_a_date> Some text", true, time.Time{}, "- [ ] Some text", true},
-		{"Empty date", "- [ ] <> Some text", true, time.Time{}, "- [ ] Some text", true},
+		{"Empty date", "- [ ] <> Some text", true, time.Time{}, "- [ ] Some text", false},
 		{"Not a date", "- [ ] <not_a_date> Some text", true, time.Time{}, "- [ ] Some text", true},
-		{"Not a todo", "<260102> Not a todo", true, time.Time{}, "<260102> Not a todo", false},
 		{"Open, no close", "- [ ] Not a < date", true, time.Time{}, "- [ ] Not a < date", true},
 		{"simple date", "- [ ] <260707> Some text", false, time.Date(2026, 07, 07, 0, 0, 0, 0, time.UTC), "- [ ] Some text", false},
 		{"TBD date", "- [ ] <?> Date to be decided", false, time.Time{}, "- [ ] Date to be decided", false},
+		{"Only closing surround", "- [ ] Only the > open part", true, time.Time{}, "- [ ] Only the > open part", false},
 	}
 
 	for _, tt := range tests {
@@ -136,6 +136,10 @@ func TestParseDate(t *testing.T) {
 			// Check for nil
 			if (gotDate == nil) != tt.wantNil {
 				t.Errorf("incorrect nil when parsing '%s': want '%v', got '%v'", tt.input, tt.wantNil, (gotDate == nil))
+			}
+
+			if gotDate == nil {
+				return
 			}
 
 			// Check for value

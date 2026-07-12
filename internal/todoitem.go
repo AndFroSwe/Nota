@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"errors"
 	"strings"
 	"time"
 )
@@ -61,19 +62,21 @@ func getStatus(s string) (TodoStatus, string, error) {
 	}
 }
 
-func extractSurroundAndTrim(s string, openMarker string, closeMarker string) extractedSurround {
+// extractSurroundAndTrim takes a string and looks for strings surrounded by openMarker and closeMarker.
+// Returns extractedSurround on success or nothing found, error on parsing error
+func extractSurroundAndTrim(s string, openMarker string, closeMarker string) (extractedSurround, error) {
 	// Find open marker
 	start := strings.Index(s, openMarker)
 	if start == -1 {
-		return extractedSurround{"", s}
+		return extractedSurround{"", s}, nil // No open marker, no date available
 	}
 
 	// Find close marker
-	openSize := len(openMarker)
+	openSize := len(openMarker) // To handle multi rune markers
 	closeSize := len(closeMarker)
 	end := strings.Index(s[start+openSize:], closeMarker)
 	if end == -1 {
-		return extractedSurround{"", s}
+		return extractedSurround{"", s}, errors.New("missing close marker")
 	}
 
 	// Found markers, extract contents
@@ -82,24 +85,40 @@ func extractSurroundAndTrim(s string, openMarker string, closeMarker string) ext
 	return extractedSurround{
 		contents: extracted,
 		trimmed:  strings.TrimSpace(s[:start]) + " " + strings.TrimSpace(s[start+end+openSize+closeSize:]),
-	}
+	}, nil
 }
 
-// BUG: All todos get a default date. Collides with having <?> or no date
+// getDate parses a todo string and returns parsed time (or nil if no time), message with dates trimmed out
+// Returns error if date was malformed or surrounds mismatched
 func getDate(s string) (*time.Time, string, error) {
+	// Early escape
 	if strings.TrimSpace(s) == "" {
-		return &time.Time{}, s, nil
+		return nil, s, nil
 	}
 
-	extracted := extractSurroundAndTrim(s, "<", ">")
-	if extracted.contents == "" {
-		return &time.Time{}, s, nil
-	}
+	// Attempt to extract date
+	extracted, err := extractSurroundAndTrim(s, "<", ">")
 
-	// Find date markers
-	d, err := time.Parse("060102", extracted.contents)
+	// Surround error
 	if err != nil {
-		return &time.Time{}, s, err
+		return nil, s, err
+	}
+
+	// Empty surround
+	if extracted.contents == "" {
+		return nil, extracted.trimmed, nil
+	}
+
+	// Check for special ? for TBD
+	if extracted.contents == "?" {
+		return &time.Time{}, extracted.trimmed, nil
+	}
+
+	// Parse date
+	d, err := time.Parse("060102", extracted.contents)
+
+	if err != nil {
+		return nil, extracted.trimmed, err
 	}
 
 	return &d, extracted.trimmed, nil
@@ -116,13 +135,20 @@ func getTags(s string) ([]string, string, error) {
 	// Extract tags
 	var tags []string
 	for {
-		extracted := extractSurroundAndTrim(s, "{", "}")
+		extracted, err := extractSurroundAndTrim(s, "{", "}")
+
+		// Surround error
+		if err != nil {
+			return nil, s, err
+		}
+
+		// Escape when no tags
+		s = extracted.trimmed
 		if extracted.contents == "" {
 			break
 		}
 
 		tags = append(tags, strings.Split(extracted.contents, ",")...)
-		s = extracted.trimmed
 	}
 
 	// Trim whitespace from tags
@@ -139,13 +165,18 @@ func getTags(s string) ([]string, string, error) {
 func getResponsible(s string) ([]string, string, error) {
 	var responsibles []string
 	for {
-		extracted := extractSurroundAndTrim(s, "[[", "]]")
+		extracted, err := extractSurroundAndTrim(s, "[[", "]]")
+		if err != nil {
+			return nil, s, err
+		}
+
+		// Early escape when no responsibles
+		s = extracted.trimmed
 		if extracted.contents == "" {
 			break
 		}
 
 		responsibles = append(responsibles, strings.Split(extracted.contents, ",")...)
-		s = extracted.trimmed
 	}
 
 	// Trim whitespace
@@ -153,7 +184,7 @@ func getResponsible(s string) ([]string, string, error) {
 		responsibles[i] = strings.TrimSpace(responsibles[i])
 	}
 
-	return responsibles, s, nil
+	return responsibles, strings.TrimSpace(s), nil
 }
 
 func ParseTodoLine(s string) (Todo, error) {
