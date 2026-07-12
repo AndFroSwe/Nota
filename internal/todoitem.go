@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Enum for TodoStatus
 type TodoStatus int
 
 const (
@@ -15,17 +16,18 @@ const (
 	NumStatuses                      // Number of statuses, must keep this last
 )
 
+// GetAvailableStatuses returns string representations of the enum
 func GetAvailableStatuses() []string {
 	return []string{"not-todo", "open", "done", "canceled"}
 }
 
-// A todo
+// Todo represents a todo
 type Todo struct {
 	Raw         string     // Raw line input
 	Msg         string     // Message line w/o metadata
 	Status      TodoStatus // Status of the todo
-	Deadline    time.Time  // When the todo should be completed
-	Tags        []string   // Togs in the todo
+	Deadline    *time.Time // When the todo should be completed. nil = no deadline, default time = TBD
+	Tags        []string   // Tags in the todo. Tags are a way of searching and sorting todos
 	Responsible []string   // Responsible for executing todo
 }
 
@@ -84,23 +86,23 @@ func extractSurroundAndTrim(s string, openMarker string, closeMarker string) ext
 }
 
 // BUG: All todos get a default date. Collides with having <?> or no date
-func getDate(s string) (time.Time, string, error) {
+func getDate(s string) (*time.Time, string, error) {
 	if strings.TrimSpace(s) == "" {
-		return time.Time{}, s, nil
+		return &time.Time{}, s, nil
 	}
 
 	extracted := extractSurroundAndTrim(s, "<", ">")
 	if extracted.contents == "" {
-		return time.Time{}, s, nil
+		return &time.Time{}, s, nil
 	}
 
 	// Find date markers
 	d, err := time.Parse("060102", extracted.contents)
 	if err != nil {
-		return time.Time{}, s, err
+		return &time.Time{}, s, err
 	}
 
-	return d, extracted.trimmed, nil
+	return &d, extracted.trimmed, nil
 }
 
 // getTags extracts tags tag lists enclosed in curly braces separated with comma from a todo line
@@ -155,9 +157,10 @@ func getResponsible(s string) ([]string, string, error) {
 }
 
 func ParseTodoLine(s string) (Todo, error) {
+	// Set default values
 	t := Todo{
-		Raw:    s,
-		Msg:    s,
+		Raw:    s, // Save raw string
+		Msg:    s, // Start with raw string
 		Status: StatusNotTodo,
 	}
 

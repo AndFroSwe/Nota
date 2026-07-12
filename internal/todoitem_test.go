@@ -101,31 +101,40 @@ func TestParseStatus(t *testing.T) {
 
 func TestParseDate(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   string
-		want    time.Time
-		wantErr bool
+		name     string
+		input    string
+		wantNil  bool      // If  a nil pointer is expected
+		wantDate time.Time // If we expect a certain time
+		wantErr  bool
 	}{
-		{"Invalid month", "- [ ] <303102> Some text", time.Time{}, false},
-		{"Invalid day", "- [ ] <300232> Some text", time.Time{}, false},
-		{"Invalid date", "- [ ] <not_a_date> Some text", time.Time{}, false},
-		{"Empty date", "- [ ] <> Some text", time.Time{}, false},
-		{"Not a date", "- [ ] <not_a_date> Some text", time.Time{}, false},
-		{"Not a todo", "<260102> Not a todo", time.Time{}, false},
-		{"Open, no close", "Not a < date", time.Time{}, false},
-		{"simple date", "- [ ] <260707> Some text", time.Date(2026, 07, 07, 0, 0, 0, 0, time.UTC), false},
+		{"Invalid month", "- [ ] <303102> Some text", true, time.Time{}, true},
+		{"Invalid day", "- [ ] <300232> Some text", true, time.Time{}, true},
+		{"Invalid date", "- [ ] <not_a_date> Some text", true, time.Time{}, true},
+		{"Empty date", "- [ ] <> Some text", true, time.Time{}, true},
+		{"Not a date", "- [ ] <not_a_date> Some text", true, time.Time{}, true},
+		{"Not a todo", "<260102> Not a todo", true, time.Time{}, false},
+		{"Open, no close", "Not a < date", true, time.Time{}, true},
+		{"simple date", "- [ ] <260707> Some text", false, time.Date(2026, 07, 07, 0, 0, 0, 0, time.UTC), false},
+		{"TBD date", "- [ ] <?> Date to be decided", false, time.Time{}, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseTodoLine(tt.input)
+			got, _, err := getDate(tt.input)
 
+			// Check for error
 			if (err != nil) != tt.wantErr {
 				t.Errorf("error parsing '%s': %v", tt.input, err)
 			}
 
-			if got.Deadline != tt.want {
-				t.Errorf("incorrect result parsing '%s'. Expected %v, got %v", tt.input, tt.want, got.Deadline)
+			// Check for nil
+			if (got == nil) != tt.wantNil {
+				t.Errorf("incorrect nil when parsing '%s': want '%v', got '%v'", tt.input, tt.wantNil, (got == nil))
+			}
+
+			// Check for value
+			if *got != tt.wantDate {
+				t.Errorf("incorrect result parsing '%s'. Expected %v, got %v", tt.input, tt.wantDate, got)
 			}
 		})
 	}
@@ -167,17 +176,19 @@ func TestParseResponsible(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		want    []string
+		want    []string // Responsibles
+		wantMsg string   // Trimmed message string
 		wantErr bool
 	}{
-		{"No responsible", "- [ ] No responsible", nil, false},
-		{"One responsible", "- [x] One Responsible [[af]]", []string{"af"}, false},
-		{"Two responsible", "- [-] Two peeps [[p1, fn ln]] after", []string{"p1", "fn ln"}, false},
+		{"No responsible", "- [ ] No responsible", nil, "- [ ] No responsible", false},
+		{"One responsible", "- [x] One Responsible [[af]]", []string{"af"}, "- [x] One Responsible", false},
+		{"Two responsible", "- [-] Two peeps [[p1, fn ln]] after", []string{"p1", "fn ln"}, "- [-] Two peeps after", false},
+		{"With UTF8", "- [ ] A [[LÅE]] responsible with UTF8", []string{"LÅE"}, "- [ ] A responsible with UTF8", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _, err := getResponsible(tt.input)
+			got, gotMsg, err := getResponsible(tt.input)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("error parsing '%s': %v", tt.input, err)
@@ -185,6 +196,10 @@ func TestParseResponsible(t *testing.T) {
 
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("incorrect result parsing '%s': want '%v', got '%v'", tt.input, tt.want, got)
+			}
+
+			if gotMsg != tt.wantMsg {
+				t.Errorf("incorrect msg parsing '%s': want '%v', got '%v'", tt.input, tt.wantMsg, gotMsg)
 			}
 		})
 	}
