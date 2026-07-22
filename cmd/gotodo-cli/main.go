@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"gotodo/internal"
+	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,7 +19,9 @@ import (
 // TODO: Add filtering
 // TODO: Add coloring of deadline based on date
 func main() {
+	// Valid choices. First in each is default
 	outputFormats := []string{"stdout", "color", "markdown"}
+	sortColumns := []string{"deadline", "responsible", "tags"}
 
 	// Command line variables
 	var dir string
@@ -28,16 +31,27 @@ func main() {
 	flag.BoolVar(&recurse, "r", false, "Recurse subdirectories")
 
 	var outputFormat string
-	flag.StringVar(&outputFormat, "f", "stdout", fmt.Sprintf("Output format %v", outputFormats))
+	flag.StringVar(&outputFormat, "f", outputFormats[0], fmt.Sprintf("Output format %v", outputFormats))
 
 	var useNerdfont bool
 	flag.BoolVar(&useNerdfont, "u", true, "Use nerdfont symbols. May need to be false on older terminals")
 
-	flag.Parse()
+	var sortBy string
+	flag.StringVar(&sortBy, "s", sortColumns[0], fmt.Sprintf("Sort by [%v]", sortColumns))
 
-	// Check input
+	var sortDir bool
+	flag.BoolVar(&sortDir, "a", true, "Sort ascending [true/false]")
+
+	flag.Parse() // Parse input flags
+
+	// Validate input date
 	if !slices.Contains(outputFormats, outputFormat) {
 		fmt.Fprintf(os.Stderr, "Incorrect format: %s. Allowed: %v\n", outputFormat, outputFormats)
+		return
+	}
+
+	if !slices.Contains(sortColumns, sortBy) {
+		fmt.Fprintf(os.Stderr, "Incorrect sort column: %s. Allowed: %v\n", sortBy, sortColumns)
 		return
 	}
 
@@ -158,8 +172,29 @@ func main() {
 			Transformer: dateTransformer,
 		},
 	})
+
+	// Sort the table
+	var sortMode table.SortMode
+	if sortDir {
+		sortMode = table.Asc
+	} else {
+		sortMode = table.Dsc
+	}
+
+	var sortName string
+	switch sortBy {
+	case "deadline":
+		sortName = "Deadline"
+	case "tags":
+		sortName = "Tags"
+	case "responsiblep":
+		sortName = "Resonsible"
+	default:
+		log.Panicf("invalid sort key")
+	}
+
 	t.SortBy([]table.SortBy{
-		{Name: "Deadline", Mode: table.Asc},
+		{Name: sortName, Mode: sortMode},
 	})
 
 	// Render to correct output
