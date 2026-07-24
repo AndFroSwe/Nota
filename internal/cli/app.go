@@ -16,80 +16,168 @@ import (
 	"golang.org/x/term"
 )
 
-func Run() {
-	// Valid choices. First in each is default
-	outputFormats := []string{"stdout", "color", "markdown"}
-	sortColumns := []string{"deadline", "responsible", "tags"}
+// Table parameters
+const (
+	wTotMin  = 120                                // Min total width of terminal to present meaningful data
+	wDate    = 12                                 // Width of date column
+	wResp    = 12                                 // Width of responsible column
+	wStatus  = 3                                  // Width of status column
+	wTagsMin = 18                                 // Min width for tags column
+	wMsgMin  = wTotMin - wDate - wResp - wTagsMin // Calculate the min width to use for the message column
+)
 
-	// Command line variables
-	var dir string
-	flag.StringVar(&dir, "d", ".", "Directory to parse")
+// programOpts are the CLI program options
+type programOpts struct {
+	rootDir      string // Directory to start search for todo files in
+	recurse      bool   // If true, recurse down from the root directory
+	outputFormat string // How to present the table data
+	useNerdfont  bool   // True if nerd fonts should be used
+	sortBy       string // Column to sort by
+	sortAsc      bool   // Sort ascending if true, descending otherwise
+}
 
-	var recurse bool
-	flag.BoolVar(&recurse, "r", false, "Recurse subdirectories")
-
-	var outputFormat string
-	flag.StringVar(&outputFormat, "f", outputFormats[0], fmt.Sprintf("Output format %v", outputFormats))
-
-	var useNerdfont bool
-	flag.BoolVar(&useNerdfont, "u", true, "Use nerdfont symbols. May need to be false on older terminals")
-
-	var sortBy string
-	flag.StringVar(&sortBy, "s", sortColumns[0], fmt.Sprintf("Sort by [%v]", sortColumns))
-
-	var sortDir bool
-	flag.BoolVar(&sortDir, "a", true, "Sort ascending [true/false]")
-
-	flag.Parse() // Parse input flags
-
-	// Validate input date
-	if !slices.Contains(outputFormats, outputFormat) {
-		fmt.Fprintf(os.Stderr, "Incorrect format: %s. Allowed: %v\n", outputFormat, outputFormats)
-		return
-	}
-
-	if !slices.Contains(sortColumns, sortBy) {
-		fmt.Fprintf(os.Stderr, "Incorrect sort column: %s. Allowed: %v\n", sortBy, sortColumns)
-		return
+// Run is the main routine for using the CLI
+//
+// Returns error code, should be run like os.Exit(cli.Run())
+func Run() int {
+	opts, err := parseFlags()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error parsing flags: ", err)
+		return 1
 	}
 
 	// Check terminal width
-	w, _, err := term.GetSize(0)
-	const wTotMin = 120
-	const wDate = 12
-	const wResp = 12
-	const wTagsMin = 18
-	const wMsgMin = wTotMin - wDate - wResp - wTagsMin // Use all available space
-
-	if w < wTotMin {
-		fmt.Fprintf(os.Stderr, "Terminal too narrow for output (%d < %d)\n", w, wTotMin)
-		return
+	// Do this before parsing files to save time if terminal is too small anyway
+	tableSize, err := calcTableSize()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error calculating tableSize: ", err)
+		return 1
 	}
 
 	// Get todos
-	todos, err := getTodos(dir, recurse)
+	todos, err := getTodos(opts.rootDir, opts.recurse)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error parsing todos: %v\n", err)
-		return
+		fmt.Fprintln(os.Stderr, "error parsing todos: ", err)
+		return 1
 	}
 
-	// Print a table
-	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"T", "Activity", "Tags", "Responsible", "Deadline"})
+	// Create table with correct options
+	t := createTable(opts, tableSize)
 	for _, todo := range todos {
 		t.AppendRow(table.Row{todo.Status, todo.Msg, todo.Tags, todo.Responsible, todo.Deadline})
 	}
 
-	// Print correct format
-	const ratioMsg = 0.7
-	wTags := max(int(float32(1.0-ratioMsg)*float32(w-wDate)), wTagsMin)
-	wMsg := w - wTags - wDate // Use as much space as possible for activity message
+	// Render to correct output
+	switch opts.outputFormat {
+	case "stdout":
+		t.Render()
+	case "markdown":
+		t.RenderMarkdown()
+	case "color":
+		{
+			t.SetStyle(table.StyleColoredDark)
+			t.Render()
+		}
+	}
 
-	// Helper to print todo
+	return 0
+}
+
+// createTable creates a table with opts and tableSize and returns a table.Write with correct settings
+func createTable(opts programOpts, tableSize *tableSize) table.Writer {
+	t := table.NewWriter()
+	t.SetOutputMirror(os.Stdout)
+	t.AppendHeader(table.Row{"T", "Activity", "Tags", "Responsible", "Deadline"})
+
+	// Helper to print string slices
+	sliceTransformer := func(val any) string {
+		if s, ok := val.([]string); ok {
+			return strings.Join(s, ",")
+		}
+
+		return fmt.Sprintf("%v", val) // Fallback
+	}
+
+	// Configure table style
+	t.SetColumnConfigs([]table.ColumnConfig{
+		{
+			Name:        "T",
+			WidthMax:    tableSize.wStatus,
+			Transformer: getTodoTransformer(opts),
+		},
+		{
+			Name:     "Activity",
+			WidthMax: tableSize.wMsg,
+		},
+		{
+			Name:        "Tags",
+			WidthMax:    tableSize.wTags,
+			Transformer: sliceTransformer,
+		},
+		{
+			Name:        "Responsible",
+			WidthMax:    tableSize.wResponsible,
+			Transformer: sliceTransformer,
+		},
+		{
+			Name:        "Deadline",
+			WidthMax:    tableSize.wDate,
+			Transformer: getDateTransformer(),
+		},
+	})
+
+	// Sort the table
+	var sortMode table.SortMode
+	if opts.sortAsc {
+		sortMode = table.Asc
+	} else {
+		sortMode = table.Dsc
+	}
+
+	var sortName string
+	switch opts.sortBy {
+	case "deadline":
+		sortName = "Deadline"
+	case "tags":
+		sortName = "Tags"
+	case "responsiblep":
+		sortName = "Resonsible"
+	default:
+		log.Panicf("invalid sort key")
+	}
+
+	t.SortBy([]table.SortBy{
+		{Name: sortName, Mode: sortMode},
+	})
+	return t
+}
+
+// getDateTransformer returns a transformer function to display dates in table
+func getDateTransformer() func(val any) string {
+	dateTransformer := func(val any) string {
+		if d, ok := val.(*time.Time); ok {
+			if d == nil {
+				return ""
+			}
+
+			if internal.IsTBD(*d) {
+				return "TBD"
+			}
+
+			return d.Format("2006-01-02")
+		}
+
+		return fmt.Sprintf("%v", val)
+	}
+
+	return dateTransformer
+}
+
+// getTodoTransformer takes programOpts and returns a transformer for displaying todo statuses
+func getTodoTransformer(opts programOpts) func(val any) string {
 	todoTransformer := func(val any) string {
 		if t, ok := val.(internal.TodoStatus); ok {
-			if useNerdfont {
+			if opts.useNerdfont {
 				switch t {
 				case internal.StatusNotTodo:
 					return ""
@@ -116,97 +204,75 @@ func Run() {
 
 		return fmt.Sprintf("%v", val) // Fallback
 	}
+	return todoTransformer
+}
 
-	// Helper to print string slices
-	sliceTransformer := func(val any) string {
-		if s, ok := val.([]string); ok {
-			return strings.Join(s, ",")
-		}
+// tableSize is the size informations for displaying the table
+// Column width in glyphs
+type tableSize struct {
+	wStatus      int
+	wMsg         int
+	wResponsible int
+	wTags        int
+	wDate        int
+}
 
-		return fmt.Sprintf("%v", val) // Fallback
+// calcTableSize calculates the size of the columns in the table based on parameters and the size of the terminal
+func calcTableSize() (*tableSize, error) {
+	terminalWidth, _, err := term.GetSize(0) // Get the current terminal size
+	if err != nil {
+		return nil, fmt.Errorf("error calculating tableSize: %v", err)
 	}
 
-	// Helper to interpret dates
-	dateTransformer := func(val any) string {
-		if d, ok := val.(*time.Time); ok {
-			if d == nil {
-				return ""
-			}
-
-			if internal.IsTBD(*d) {
-				return "TBD"
-			}
-
-			return d.Format("2006-01-02")
-		}
-
-		return fmt.Sprintf("%v", val)
+	// Need enough space to give meaningful output
+	if terminalWidth < wTotMin {
+		return nil, fmt.Errorf("terminal too narrow for output (%d < %d)", terminalWidth, wTotMin)
 	}
 
-	// Configure table style
-	t.SetColumnConfigs([]table.ColumnConfig{
-		{
-			Name:        "T",
-			WidthMax:    3,
-			Transformer: todoTransformer,
-		},
-		{
-			Name:     "Activity",
-			WidthMax: wMsg,
-		},
-		{
-			Name:        "Tags",
-			WidthMax:    wTags,
-			Transformer: sliceTransformer,
-		},
-		{
-			Name:        "Responsible",
-			WidthMax:    wResp,
-			Transformer: sliceTransformer,
-		},
-		{
-			Name:        "Deadline",
-			WidthMax:    wDate,
-			Transformer: dateTransformer,
-		},
-	})
+	tz := tableSize{
+		wDate:        wDate,
+		wResponsible: wResp,
+		wStatus:      wStatus,
+	}
+	const ratioMsg = 0.7 // The relative size of the total that message should try to take up
+	tz.wTags = max(
+		int(float32(1.0-ratioMsg)*float32(terminalWidth-wDate)), // Dynamic size
+		wTagsMin, // Min allowed size
+	)
+	tz.wMsg = terminalWidth - tz.wTags - wDate // Use as much space as possible for activity message
 
-	// Sort the table
-	var sortMode table.SortMode
-	if sortDir {
-		sortMode = table.Asc
-	} else {
-		sortMode = table.Dsc
+	return &tz, nil
+}
+
+// parseFlags parses the input flags and returns programOpts if correct, error otherwise
+func parseFlags() (programOpts, error) {
+	opts := programOpts{}
+
+	// Valid choices. First in each is default
+	outputFormats := []string{"stdout", "color", "markdown"}
+	sortColumns := []string{"deadline", "responsible", "tags"}
+
+	// Command line variables
+	flag.StringVar(&opts.rootDir, "d", ".", "Directory to parse")
+	flag.BoolVar(&opts.recurse, "r", false, "Recurse subdirectories")
+	flag.StringVar(&opts.outputFormat, "f", outputFormats[0], fmt.Sprintf("Output format %v", outputFormats))
+	flag.BoolVar(&opts.useNerdfont, "u", true, "Use nerdfont symbols. May need to be false on older terminals")
+	flag.StringVar(&opts.sortBy, "s", sortColumns[0], fmt.Sprintf("Sort by [%v]", sortColumns))
+	flag.BoolVar(&opts.sortAsc, "a", true, "Sort ascending [true/false]")
+	flag.Parse() // Parse input flags
+
+	// Validate input date
+	if !slices.Contains(outputFormats, opts.outputFormat) {
+		fmt.Fprintf(os.Stderr, "Incorrect format: %s. Allowed: %v\n", opts.outputFormat, outputFormats)
+		return programOpts{}, fmt.Errorf("incorrect output format. Want %s, got %v", outputFormats, opts.outputFormat)
 	}
 
-	var sortName string
-	switch sortBy {
-	case "deadline":
-		sortName = "Deadline"
-	case "tags":
-		sortName = "Tags"
-	case "responsiblep":
-		sortName = "Resonsible"
-	default:
-		log.Panicf("invalid sort key")
+	if !slices.Contains(sortColumns, opts.sortBy) {
+		fmt.Fprintf(os.Stderr, "Incorrect sort column: %s. Allowed: %v\n", opts.sortBy, sortColumns)
+		return programOpts{}, fmt.Errorf("incorrect sort columns. Want %s, got %v", sortColumns, opts.sortBy)
 	}
 
-	t.SortBy([]table.SortBy{
-		{Name: sortName, Mode: sortMode},
-	})
-
-	// Render to correct output
-	switch outputFormat {
-	case "stdout":
-		t.Render()
-	case "markdown":
-		t.RenderMarkdown()
-	case "color":
-		{
-			t.SetStyle(table.StyleColoredDark)
-			t.Render()
-		}
-	}
+	return opts, nil
 }
 
 // getTodos finds the files to check and calls parsing on them
@@ -238,6 +304,7 @@ func getTodos(dir string, recurse bool) ([]internal.Todo, error) {
 	return todos, nil
 }
 
+// parseFile takes a path and pointer to todo slice and adds todos from file at path to the slice or returns an error
 func parseFile(path string, todos *[]internal.Todo) error {
 	file, err := os.Open(path)
 	if err != nil {
