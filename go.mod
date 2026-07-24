@@ -1,4 +1,4 @@
-module nota
+module github.com/andfroswe/nota
 
 go 1.26.4
 
