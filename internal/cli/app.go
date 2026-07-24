@@ -9,6 +9,7 @@ import (
 	"golang.org/x/term"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"time"
@@ -40,6 +41,7 @@ type programOpts struct {
 	sortAsc        bool     // Sort ascending if true, descending otherwise
 	filterByStatus []string // Only show tasks with these statuses
 	listFile       bool     // If true, display column with the file task is in
+	showVersion    bool     // If true, show version and quit
 }
 
 // tableSize is the size informations for displaying the table
@@ -58,6 +60,12 @@ type tableSize struct {
 // Returns error code, should be run like os.Exit(cli.Run())
 func Run() int {
 	opts := parseFlags()
+
+	// If version switch given, display version and exit
+	if opts.showVersion {
+		fmt.Printf("NoTa version %s\n", getVersion())
+		return 0
+	}
 
 	// Check terminal width
 	// Do this before parsing files to save time if terminal is too small anyway
@@ -115,6 +123,15 @@ func Run() int {
 	}
 
 	return 0
+}
+
+func getVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "unknown"
+	}
+
+	return info.Main.Version
 }
 
 func filterData(opts programOpts, todos []todoitem.Todo) ([]todoitem.Todo, error) {
@@ -338,6 +355,7 @@ func parseFlags() programOpts {
 	flag.StringVar(&opts.sortBy, "s", sortColumns[0], fmt.Sprintf("[S]ort by [%v]", sortColumns))
 	flag.BoolVar(&opts.sortAsc, "a", true, "Sort [a]scending [true/false]")
 	flag.BoolVar(&opts.listFile, "l", true, "[L]ist file location in table")
+	flag.BoolVar(&opts.showVersion, "v", false, "Show current app version and exit")
 
 	var filterInput string
 	flag.StringVar(&filterInput, "i", "open,done,canceled", fmt.Sprintf("[I]nclude statuses. Multiple choices possible, delimit with ','. Allowed: %v", todoitem.GetAvailableStatuses()))
