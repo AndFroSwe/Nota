@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -28,6 +27,12 @@ const (
 	renderOverhead      = (numberOfCols + 1) + (numberOfCols-1)*2                                                           // Rendering overhead. Separators + padding
 	minMessageWidth     = minTotalWidth - minDateWidth - minResponisbleWidth - minStatusWidth - minTagsWidth - numberOfCols // Calculate the min width to use for the message column
 )
+
+// Allowed columns to sort by
+var sortColumns = []string{"deadline", "responsible", "tags"}
+
+// Allowed output format
+var outputFormats = []string{"stdout", "color", "markdown"}
 
 // programOpts are the CLI program options
 type programOpts struct {
@@ -53,17 +58,20 @@ type tableSize struct {
 //
 // Returns error code, should be run like os.Exit(cli.Run())
 func Run() int {
-	opts, err := parseFlags()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error parsing flags: ", err)
-		return 1
-	}
+	opts := parseFlags()
 
 	// Check terminal width
 	// Do this before parsing files to save time if terminal is too small anyway
 	tableSize, err := calcTableSize()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error calculating tableSize: ", err)
+		return 1
+	}
+
+	// Create table with correct options
+	t, err := createTable(opts, tableSize)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error in createTable: ", err)
 		return 1
 	}
 
@@ -74,13 +82,16 @@ func Run() int {
 		return 1
 	}
 
-	// Create table with correct options
-	t := createTable(opts, tableSize)
 	for _, todo := range todos {
 		t.AppendRow(table.Row{todo.Status, todo.Msg, todo.Tags, todo.Responsible, todo.Deadline})
 	}
 
 	// Render to correct output
+	if !slices.Contains(outputFormats, opts.outputFormat) {
+		fmt.Fprintf(os.Stderr, "incorrect outputFormat: Want %v, got %s\n", outputFormats, opts.outputFormat)
+		return 1
+	}
+
 	switch opts.outputFormat {
 	case "stdout":
 		t.Render()
@@ -95,7 +106,7 @@ func Run() int {
 }
 
 // createTable creates a table with opts and tableSize and returns a table.Write with correct settings
-func createTable(opts programOpts, tableSize *tableSize) table.Writer {
+func createTable(opts programOpts, tableSize *tableSize) (table.Writer, error) {
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
 	t.AppendHeader(table.Row{"T", "Activity", "Tags", "Responsible", "Deadline"})
@@ -136,6 +147,11 @@ func createTable(opts programOpts, tableSize *tableSize) table.Writer {
 		sortMode = table.Dsc
 	}
 
+	if !slices.Contains(sortColumns, opts.sortBy) {
+		fmt.Fprintf(os.Stderr, "Incorrect sort column: %s. Allowed: %v\n", opts.sortBy, sortColumns)
+		return nil, fmt.Errorf("incorrect sort columns. Want %s, got %v", sortColumns, opts.sortBy)
+	}
+
 	var sortName string
 	switch opts.sortBy {
 	case "deadline":
@@ -145,13 +161,13 @@ func createTable(opts programOpts, tableSize *tableSize) table.Writer {
 	case "responsible":
 		sortName = "Responsible"
 	default:
-		log.Panicf("invalid sort key")
+		return nil, fmt.Errorf("incorrect sort key. Want %v, got %s", sortColumns, opts.sortBy)
 	}
 
 	t.SortBy([]table.SortBy{
 		{Name: sortName, Mode: sortMode},
 	})
-	return t
+	return t, nil
 }
 
 // dateTransformer transforms a date to desired format
@@ -245,13 +261,9 @@ func calcTableSize() (*tableSize, error) {
 	return &tz, nil
 }
 
-// parseFlags parses the input flags and returns programOpts if correct, error otherwise
-func parseFlags() (programOpts, error) {
+// parseFlags parses the input flags and returns programOpts
+func parseFlags() programOpts {
 	opts := programOpts{}
-
-	// Valid choices. First in each is default
-	outputFormats := []string{"stdout", "color", "markdown"}
-	sortColumns := []string{"deadline", "responsible", "tags"}
 
 	// Command line variables
 	flag.StringVar(&opts.rootDir, "d", ".", "Directory to parse")
@@ -262,18 +274,7 @@ func parseFlags() (programOpts, error) {
 	flag.BoolVar(&opts.sortAsc, "a", true, "Sort ascending [true/false]")
 	flag.Parse()
 
-	// Validate input date
-	if !slices.Contains(outputFormats, opts.outputFormat) {
-		fmt.Fprintf(os.Stderr, "Incorrect format: %s. Allowed: %v\n", opts.outputFormat, outputFormats)
-		return programOpts{}, fmt.Errorf("incorrect output format. Want %s, got %v", outputFormats, opts.outputFormat)
-	}
-
-	if !slices.Contains(sortColumns, opts.sortBy) {
-		fmt.Fprintf(os.Stderr, "Incorrect sort column: %s. Allowed: %v\n", opts.sortBy, sortColumns)
-		return programOpts{}, fmt.Errorf("incorrect sort columns. Want %s, got %v", sortColumns, opts.sortBy)
-	}
-
-	return opts, nil
+	return opts
 }
 
 // getTodos finds the files to check and calls parsing on them
