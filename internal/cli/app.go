@@ -25,7 +25,7 @@ const (
 )
 
 // Allowed columns to sort by
-var sortColumns = []string{"deadline", "responsible", "tags"}
+var sortColumns = []string{"status", "deadline", "responsible", "tags"}
 
 // Allowed output format
 var outputFormats = []string{"stdout", "color", "markdown"}
@@ -140,10 +140,11 @@ func createTable(opts programOpts, tableSize tableSize) (table.Writer, error) {
 	t.SetOutputMirror(os.Stdout)
 
 	// Configure table style
-	headers := table.Row{"T", "Activity", "Tags", "Responsible", "Deadline"}
+	statusColumnName := "T" // Set this to a one letter name to match icon length
+	headers := table.Row{statusColumnName, "Activity", "Tags", "Responsible", "Deadline"}
 	columns := []table.ColumnConfig{
 		{
-			Name:        "T",
+			Name:        statusColumnName,
 			WidthMax:    tableSize.wMaxStatus,
 			Transformer: getTodoTransformer(opts),
 		},
@@ -197,6 +198,8 @@ func createTable(opts programOpts, tableSize tableSize) (table.Writer, error) {
 
 	var sortName string
 	switch opts.sortBy {
+	case "status":
+		sortName = statusColumnName
 	case "deadline":
 		sortName = "Deadline"
 	case "tags":
