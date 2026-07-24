@@ -30,6 +30,7 @@ type Todo struct {
 	Deadline    *time.Time // When the todo should be completed. nil = no deadline, default time = TBD
 	Tags        []string   // Tags in the todo. Tags are a way of searching and sorting todos
 	Responsible []string   // Responsible for executing todo
+	File        string     // Name of the file todo is in
 }
 
 // ToString takes a TodoStatus and returns its string representation
@@ -203,12 +204,13 @@ func getResponsible(s string) ([]string, string, error) {
 	return responsibles, strings.TrimSpace(s), nil
 }
 
-func ParseTodoLine(s string) (Todo, error) {
+func ParseTodoLine(s string, filename string) (Todo, error) {
 	// Set default values
 	t := Todo{
 		Raw:    s, // Save raw string
 		Msg:    s, // Start with raw string
 		Status: StatusNotTodo,
+		File:   filename,
 	}
 
 	// Get status and check if it is a todo

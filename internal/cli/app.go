@@ -16,14 +16,12 @@ import (
 
 // Table parameters
 const (
-	minTotalWidth       = 120                                                                                               // Min total width of terminal to present meaningful data
-	minDateWidth        = 12                                                                                                // Width of date column
-	minResponisbleWidth = 12                                                                                                // Width of responsible column
-	minStatusWidth      = 1                                                                                                 // Width of status column
-	minTagsWidth        = 18                                                                                                // Min width for tags column
-	numberOfCols        = 5                                                                                                 // Number of columns
-	renderOverhead      = (numberOfCols + 1) + (numberOfCols-1)*2                                                           // Rendering overhead. Separators + padding
-	minMessageWidth     = minTotalWidth - minDateWidth - minResponisbleWidth - minStatusWidth - minTagsWidth - numberOfCols // Calculate the min width to use for the message column
+	minTotalWidth       = 120 // Min total width of terminal to present meaningful data
+	maxDateWidth        = 12  // Width of date column
+	maxResponisbleWidth = 12  // Width of responsible column
+	maxStatusWidth      = 1   // Width of status column
+	minTagsWidth        = 18  // Min width for tags column
+	maxFileWidth        = 30  // Min width for todo file
 )
 
 // Allowed columns to sort by
@@ -41,16 +39,18 @@ type programOpts struct {
 	sortBy         string   // Column to sort by
 	sortAsc        bool     // Sort ascending if true, descending otherwise
 	filterByStatus []string // Only show tasks with these statuses
+	listFile       bool     // If true, display column with the file task is in
 }
 
 // tableSize is the size informations for displaying the table
 // Column width in glyphs
 type tableSize struct {
 	wMaxStatus      int
-	wMaxMsg         int
+	wMinMsg         int
 	wMaxResponsible int
-	wMaxTags        int
+	wMinTags        int
 	wMaxDate        int
+	wMaxFile        int
 }
 
 // Run is the main routine for using the CLI
@@ -61,7 +61,7 @@ func Run() int {
 
 	// Check terminal width
 	// Do this before parsing files to save time if terminal is too small anyway
-	tableSize, err := calcTableSize()
+	tableSize, err := calcTableSize(opts)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error calculating tableSize: ", err)
 		return 1
@@ -90,7 +90,12 @@ func Run() int {
 
 	// Add the data to the table
 	for _, todo := range tableData {
-		t.AppendRow(table.Row{todo.Status, todo.Msg, todo.Tags, todo.Responsible, todo.Deadline})
+		row := table.Row{todo.Status, todo.Msg, todo.Tags, todo.Responsible, todo.Deadline}
+		if opts.listFile {
+			row = append(row, todo.File)
+		}
+
+		t.AppendRow(row)
 	}
 
 	// Render to correct output
@@ -130,13 +135,13 @@ func filterData(opts programOpts, todos []todoitem.Todo) ([]todoitem.Todo, error
 }
 
 // createTable creates a table with opts and tableSize and returns a table.Write with correct settings
-func createTable(opts programOpts, tableSize *tableSize) (table.Writer, error) {
+func createTable(opts programOpts, tableSize tableSize) (table.Writer, error) {
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"T", "Activity", "Tags", "Responsible", "Deadline"})
 
 	// Configure table style
-	t.SetColumnConfigs([]table.ColumnConfig{
+	headers := table.Row{"T", "Activity", "Tags", "Responsible", "Deadline"}
+	columns := []table.ColumnConfig{
 		{
 			Name:        "T",
 			WidthMax:    tableSize.wMaxStatus,
@@ -144,11 +149,11 @@ func createTable(opts programOpts, tableSize *tableSize) (table.Writer, error) {
 		},
 		{
 			Name:     "Activity",
-			WidthMax: tableSize.wMaxMsg,
+			WidthMax: tableSize.wMinMsg,
 		},
 		{
 			Name:        "Tags",
-			WidthMax:    tableSize.wMaxTags,
+			WidthMax:    tableSize.wMinTags,
 			Transformer: sliceTransformer,
 		},
 		{
@@ -161,7 +166,21 @@ func createTable(opts programOpts, tableSize *tableSize) (table.Writer, error) {
 			WidthMax:    tableSize.wMaxDate,
 			Transformer: dateTransformer,
 		},
-	})
+	}
+
+	// Add file column if needed
+	if opts.listFile {
+		headers = append(headers, "File")
+		columns = append(columns, table.ColumnConfig{
+			Name:     "File",
+			WidthMax: tableSize.wMaxFile,
+		})
+
+	}
+
+	// Set table config
+	t.AppendHeader(headers)
+	t.SetColumnConfigs(columns)
 
 	// Sort the table
 	var sortMode table.SortMode
@@ -256,34 +275,52 @@ func getTodoTransformer(opts programOpts) func(val any) string {
 }
 
 // calcTableSize calculates the size of the columns in the table based on parameters and the size of the terminal
-func calcTableSize() (*tableSize, error) {
+func calcTableSize(opts programOpts) (tableSize, error) {
 	terminalWidth, _, err := term.GetSize(0) // Get the current terminal size
 	if err != nil {
-		return nil, fmt.Errorf("error calculating tableSize: %v", err)
+		return tableSize{}, fmt.Errorf("error calculating tableSize: %v", err)
 	}
 
 	// Need enough space to give meaningful output
 	if terminalWidth < minTotalWidth {
-		return nil, fmt.Errorf("terminal too narrow for output (%d < %d)", terminalWidth, minTotalWidth)
+		return tableSize{}, fmt.Errorf("terminal too narrow for output (%d < %d)", terminalWidth, minTotalWidth)
 	}
 
-	tz := tableSize{
-		wMaxDate:        minDateWidth,
-		wMaxResponsible: minResponisbleWidth,
-		wMaxStatus:      minStatusWidth,
+	// Use file width if needed
+	numberOfCols := 5 // Number of columns
+	var fileWidth int
+	if opts.listFile {
+		fileWidth = maxFileWidth
+		numberOfCols++
+	} else {
+		fileWidth = 0
 	}
-	const ratioMsg = 0.8                                                                         // The relative size of the dynamic columns to give to msg
-	dynCols := terminalWidth - tz.wMaxDate - tz.wMaxResponsible - tz.wMaxStatus - renderOverhead // Available columns for dynamics sizing
-	tz.wMaxMsg = max(
+
+	// Calculate the table sizes
+	tz := tableSize{
+		wMaxDate:        maxDateWidth,
+		wMaxResponsible: maxResponisbleWidth,
+		wMaxStatus:      maxStatusWidth,
+		wMaxFile:        fileWidth,
+	}
+
+	renderOverhead := (numberOfCols + 1) + (numberOfCols-1)*2 // Rendering overhead. Separators + padding
+	// Calculate the min width to use for the message column
+	minMessageWidth := minTotalWidth - maxDateWidth - maxResponisbleWidth - maxStatusWidth - minTagsWidth - renderOverhead
+
+	// The relative size of the dynamic columns to give to msg
+	const ratioMsg = 0.8
+	dynCols := terminalWidth - tz.wMaxDate - tz.wMaxResponsible - tz.wMaxStatus - tz.wMaxFile - renderOverhead // Available columns for dynamics sizing
+	tz.wMinMsg = max(
 		int(ratioMsg*float64(dynCols)), // Dynamic size
 		minMessageWidth,
 	)
-	tz.wMaxTags = max(
-		dynCols-tz.wMaxMsg, // Left from msg size
+	tz.wMinTags = max(
+		dynCols-tz.wMinMsg, // Left from msg size
 		minTagsWidth,       // Min allowed size
 	)
 
-	return &tz, nil
+	return tz, nil
 }
 
 // parseFlags parses the input flags and returns programOpts
@@ -297,6 +334,7 @@ func parseFlags() programOpts {
 	flag.BoolVar(&opts.useNerdfont, "u", true, "[U]se nerdfont symbols. May need to be false on older terminals")
 	flag.StringVar(&opts.sortBy, "s", sortColumns[0], fmt.Sprintf("[S]ort by [%v]", sortColumns))
 	flag.BoolVar(&opts.sortAsc, "a", true, "Sort [a]scending [true/false]")
+	flag.BoolVar(&opts.listFile, "l", true, "[L]ist file location in table")
 
 	var filterInput string
 	flag.StringVar(&filterInput, "i", "open,done,canceled", fmt.Sprintf("[I]nclude statuses. Multiple choices possible, delimit with ','. Allowed: %v", todoitem.GetAvailableStatuses()))
@@ -352,7 +390,7 @@ func parseFile(path string, todos []todoitem.Todo) ([]todoitem.Todo, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		todo, err := todoitem.ParseTodoLine(line)
+		todo, err := todoitem.ParseTodoLine(line, filepath.Base(path))
 		if err != nil {
 			continue
 		}
