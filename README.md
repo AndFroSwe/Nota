@@ -37,3 +37,12 @@ go install github.com/andfroswe/nota/cmd/nota@latest
 ```
 
 Full CLI options can be checked by running `nota --help`.
+
+## Tips and trick
+
+To get a nice rendered and paged view of the table, pipe the markdown output to [glow](https://github.com/charmbracelet/glow):
+
+```bash
+# Use -t flag for tui mode, -w to set width
+nota -d . -f markdown | glow -t -w 140
+```
