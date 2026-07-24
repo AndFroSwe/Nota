@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/andfroswe/nota/internal/todoitem"
 	"log"
 	"os"
 	"path/filepath"
@@ -12,18 +11,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andfroswe/nota/internal/todoitem"
+
 	"github.com/jedib0t/go-pretty/v6/table"
 	"golang.org/x/term"
 )
 
 // Table parameters
 const (
-	wTotMin  = 120                                // Min total width of terminal to present meaningful data
-	wDate    = 12                                 // Width of date column
-	wResp    = 12                                 // Width of responsible column
-	wStatus  = 3                                  // Width of status column
-	wTagsMin = 18                                 // Min width for tags column
-	wMsgMin  = wTotMin - wDate - wResp - wTagsMin // Calculate the min width to use for the message column
+	wTotMin   = 120                                                  // Min total width of terminal to present meaningful data
+	wDate     = 12                                                   // Width of date column
+	wResp     = 12                                                   // Width of responsible column
+	wStatus   = 1                                                    // Width of status column
+	wTagsMin  = 18                                                   // Min width for tags column
+	wCols     = 5                                                    // Number of columns
+	wOverhead = (wCols + 1) + (wCols-1)*2                            // Rendering overhead. Separators + padding
+	wMsgMin   = wTotMin - wDate - wResp - wStatus - wTagsMin - wCols // Calculate the min width to use for the message column
 )
 
 // programOpts are the CLI program options
@@ -102,26 +105,26 @@ func createTable(opts programOpts, tableSize *tableSize) table.Writer {
 	t.SetColumnConfigs([]table.ColumnConfig{
 		{
 			Name:        "T",
-			WidthMax:    tableSize.wStatus,
+			WidthMax:    tableSize.wMaxStatus,
 			Transformer: getTodoTransformer(opts),
 		},
 		{
 			Name:     "Activity",
-			WidthMax: tableSize.wMsg,
+			WidthMax: tableSize.wMaxMsg,
 		},
 		{
 			Name:        "Tags",
-			WidthMax:    tableSize.wTags,
+			WidthMax:    tableSize.wMaxTags,
 			Transformer: sliceTransformer,
 		},
 		{
 			Name:        "Responsible",
-			WidthMax:    tableSize.wResponsible,
+			WidthMax:    tableSize.wMaxResponsible,
 			Transformer: sliceTransformer,
 		},
 		{
 			Name:        "Deadline",
-			WidthMax:    tableSize.wDate,
+			WidthMax:    tableSize.wMaxDate,
 			Transformer: getDateTransformer(),
 		},
 	})
@@ -210,11 +213,11 @@ func getTodoTransformer(opts programOpts) func(val any) string {
 // tableSize is the size informations for displaying the table
 // Column width in glyphs
 type tableSize struct {
-	wStatus      int
-	wMsg         int
-	wResponsible int
-	wTags        int
-	wDate        int
+	wMaxStatus      int
+	wMaxMsg         int
+	wMaxResponsible int
+	wMaxTags        int
+	wMaxDate        int
 }
 
 // calcTableSize calculates the size of the columns in the table based on parameters and the size of the terminal
@@ -230,16 +233,20 @@ func calcTableSize() (*tableSize, error) {
 	}
 
 	tz := tableSize{
-		wDate:        wDate,
-		wResponsible: wResp,
-		wStatus:      wStatus,
+		wMaxDate:        wDate,
+		wMaxResponsible: wResp,
+		wMaxStatus:      wStatus,
 	}
-	const ratioMsg = 0.7 // The relative size of the total that message should try to take up
-	tz.wTags = max(
-		int(float32(1.0-ratioMsg)*float32(terminalWidth-wDate)), // Dynamic size
-		wTagsMin, // Min allowed size
+	const ratioMsg = 0.8                                                                    // The relative size of the dynamic columns to give to msg
+	dynCols := terminalWidth - tz.wMaxDate - tz.wMaxResponsible - tz.wMaxStatus - wOverhead // Available columns for dynamics sizing
+	tz.wMaxMsg = max(
+		int(ratioMsg*float64(dynCols)), // Dynamic size
+		wMsgMin,
 	)
-	tz.wMsg = terminalWidth - tz.wTags - wDate // Use as much space as possible for activity message
+	tz.wMaxTags = max(
+		dynCols-tz.wMaxMsg, // Left from msg size
+		wTagsMin,           // Min allowed size
+	)
 
 	return &tz, nil
 }
