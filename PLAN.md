@@ -6,6 +6,7 @@
 - [ ] Add coloring of deadline based on date
 - [ ] File level filtering of tags
 - [ ] TUI
+- [ ] Display column with task file
 
 ## TUI/GUI
 
