@@ -32,6 +32,22 @@ type Todo struct {
 	Responsible []string   // Responsible for executing todo
 }
 
+// ToString takes a TodoStatus and returns its string representation
+func ToString(status TodoStatus) string {
+	switch status {
+	case StatusNotTodo:
+		return "not-todo"
+	case StatusOpen:
+		return "open"
+	case StatusDone:
+		return "done"
+	case StatusCanceled:
+		return "canceled"
+	default:
+		return ""
+	}
+}
+
 // extractedSurround is the return type when extracting tags, dates, responsibles or other types that
 // are kept surrounded by symbols
 type extractedSurround struct {

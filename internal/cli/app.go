@@ -4,16 +4,14 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	todoitem "github.com/andfroswe/nota/internal/todoitem"
+	"github.com/jedib0t/go-pretty/v6/table"
+	"golang.org/x/term"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
-
-	todoitem "github.com/andfroswe/nota/internal/todoitem"
-
-	"github.com/jedib0t/go-pretty/v6/table"
-	"golang.org/x/term"
 )
 
 // Table parameters
@@ -36,12 +34,13 @@ var outputFormats = []string{"stdout", "color", "markdown"}
 
 // programOpts are the CLI program options
 type programOpts struct {
-	rootDir      string // Directory to start search for todo files in
-	recurse      bool   // If true, recurse down from the root directory
-	outputFormat string // How to present the table data
-	useNerdfont  bool   // True if nerd fonts should be used
-	sortBy       string // Column to sort by
-	sortAsc      bool   // Sort ascending if true, descending otherwise
+	rootDir        string   // Directory to start search for todo files in
+	recurse        bool     // If true, recurse down from the root directory
+	outputFormat   string   // How to present the table data
+	useNerdfont    bool     // True if nerd fonts should be used
+	sortBy         string   // Column to sort by
+	sortAsc        bool     // Sort ascending if true, descending otherwise
+	filterByStatus []string // Only show tasks with these statuses
 }
 
 // tableSize is the size informations for displaying the table
@@ -82,7 +81,15 @@ func Run() int {
 		return 1
 	}
 
-	for _, todo := range todos {
+	// Process data
+	tableData, err := filterData(opts, todos)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v", err)
+		return 1
+	}
+
+	// Add the data to the table
+	for _, todo := range tableData {
 		t.AppendRow(table.Row{todo.Status, todo.Msg, todo.Tags, todo.Responsible, todo.Deadline})
 	}
 
@@ -103,6 +110,23 @@ func Run() int {
 	}
 
 	return 0
+}
+
+func filterData(opts programOpts, todos []todoitem.Todo) ([]todoitem.Todo, error) {
+	filteredData := make([]todoitem.Todo, 0, len(todos))
+
+	for _, status := range opts.filterByStatus {
+		if !slices.Contains(todoitem.GetAvailableStatuses(), status) {
+			return nil, fmt.Errorf("invalid filter status. Want %v, got %s\n", todoitem.GetAvailableStatuses(), status)
+		}
+	}
+
+	for _, todo := range todos {
+		if slices.Contains(opts.filterByStatus, todoitem.ToString(todo.Status)) {
+			filteredData = append(filteredData, todo)
+		}
+	}
+	return filteredData, nil
 }
 
 // createTable creates a table with opts and tableSize and returns a table.Write with correct settings
@@ -167,6 +191,7 @@ func createTable(opts programOpts, tableSize *tableSize) (table.Writer, error) {
 	t.SortBy([]table.SortBy{
 		{Name: sortName, Mode: sortMode},
 	})
+
 	return t, nil
 }
 
@@ -266,13 +291,19 @@ func parseFlags() programOpts {
 	opts := programOpts{}
 
 	// Command line variables
-	flag.StringVar(&opts.rootDir, "d", ".", "Directory to parse")
-	flag.BoolVar(&opts.recurse, "r", false, "Recurse subdirectories")
-	flag.StringVar(&opts.outputFormat, "f", outputFormats[0], fmt.Sprintf("Output format %v", outputFormats))
-	flag.BoolVar(&opts.useNerdfont, "u", true, "Use nerdfont symbols. May need to be false on older terminals")
-	flag.StringVar(&opts.sortBy, "s", sortColumns[0], fmt.Sprintf("Sort by [%v]", sortColumns))
-	flag.BoolVar(&opts.sortAsc, "a", true, "Sort ascending [true/false]")
+	flag.StringVar(&opts.rootDir, "d", ".", "[D]irectory to parse")
+	flag.BoolVar(&opts.recurse, "r", false, "[R]ecurse subdirectories")
+	flag.StringVar(&opts.outputFormat, "f", outputFormats[0], fmt.Sprintf("Output [f]ormat %v", outputFormats))
+	flag.BoolVar(&opts.useNerdfont, "u", true, "[U]se nerdfont symbols. May need to be false on older terminals")
+	flag.StringVar(&opts.sortBy, "s", sortColumns[0], fmt.Sprintf("[S]ort by [%v]", sortColumns))
+	flag.BoolVar(&opts.sortAsc, "a", true, "Sort [a]scending [true/false]")
+
+	var filterInput string
+	flag.StringVar(&filterInput, "i", "open,done,canceled", fmt.Sprintf("[I]nclude statuses. Multiple choices possible, delimit with ','. Allowed: %v", todoitem.GetAvailableStatuses()))
 	flag.Parse()
+
+	// Additional parsing of input
+	opts.filterByStatus = strings.Split(filterInput, ",")
 
 	return opts
 }
