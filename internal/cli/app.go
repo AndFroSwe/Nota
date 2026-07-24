@@ -294,7 +294,9 @@ func getTodos(dir string, recurse bool) ([]internal.Todo, error) {
 			return nil
 		}
 
-		return parseFile(path, &todos)
+		todos, err = parseFile(path, todos) // Mutate parent todos
+
+		return err
 	})
 
 	if err != nil {
@@ -305,10 +307,10 @@ func getTodos(dir string, recurse bool) ([]internal.Todo, error) {
 }
 
 // parseFile takes a path and pointer to todo slice and adds todos from file at path to the slice or returns an error
-func parseFile(path string, todos *[]internal.Todo) error {
+func parseFile(path string, todos []internal.Todo) ([]internal.Todo, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("opening %s: %w", path, err)
+		return todos, fmt.Errorf("opening %s: %w", path, err)
 	}
 	defer file.Close()
 
@@ -326,12 +328,12 @@ func parseFile(path string, todos *[]internal.Todo) error {
 			continue
 		}
 
-		*todos = append(*todos, todo)
+		todos = append(todos, todo)
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil
+		return todos, err
 	}
 
-	return nil
+	return todos, nil
 }
