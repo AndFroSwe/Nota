@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"gotodo/internal"
+	"nota/internal"
 	"log"
 	"os"
 	"path/filepath"
@@ -16,8 +16,6 @@ import (
 	"golang.org/x/term"
 )
 
-// TODO: Add filtering
-// TODO: Add coloring of deadline based on date
 func main() {
 	// Valid choices. First in each is default
 	outputFormats := []string{"stdout", "color", "markdown"}

@@ -1,4 +1,4 @@
-module gotodo
+module nota
 
 go 1.26.4
 

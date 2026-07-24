@@ -1,8 +1,10 @@
-# Go TODO
+# Nota - Simple and effective task tracking 🗒️
 
-Interfaces with todo notes with markdowns todo syntax. Meant to be run inside a folder with many todo files, parsing
-each file and extracting information about todos.
+Todos often come up while notes are being taken, for example during meetings. Instead of having a separate note taking
+app which would break the flow, just embed tasks directly in the notes. Nota can then scan all files with notes in them,
+extract todos and present them in a digestible format.
 
-## TODO 
+## Usage
 
-- Add support for setting tags on non-todo items
+Nota tracks todos by adding special tags on top of regular markdown tick box syntax `- [ ]`. Note files can be any plain
+text format as long as todos to be tracked are marked correctly.
