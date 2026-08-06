@@ -42,6 +42,7 @@ type programOpts struct {
 	filterByStatus []string // Only show tasks with these statuses
 	listFile       bool     // If true, display column with the file task is in
 	showVersion    bool     // If true, show version and quit
+	terminalWidth  int      // Custom terminal width
 }
 
 // tableSize is the size informations for displaying the table
@@ -98,7 +99,13 @@ func Run() int {
 
 	// Add the data to the table
 	for _, todo := range tableData {
-		row := table.Row{todo.Status, todo.Msg, todo.Tags, todo.Responsible, todo.Deadline}
+		row := table.Row{
+			todo.Status,
+			todo.Deadline,
+			todo.Responsible,
+			todo.Tags,
+			todo.Msg,
+		}
 		if opts.listFile {
 			row = append(row, todo.File)
 		}
@@ -158,7 +165,13 @@ func createTable(opts programOpts, tableSize tableSize) (table.Writer, error) {
 
 	// Configure table style
 	statusColumnName := "T" // Set this to a one letter name to match icon length
-	headers := table.Row{statusColumnName, "Activity", "Tags", "Responsible", "Deadline"}
+	headers := table.Row{
+		statusColumnName,
+		"Deadline",
+		"Responsible",
+		"Tags",
+		"Activity",
+	}
 	columns := []table.ColumnConfig{
 		{
 			Name:        statusColumnName,
@@ -166,13 +179,9 @@ func createTable(opts programOpts, tableSize tableSize) (table.Writer, error) {
 			Transformer: getTodoTransformer(opts),
 		},
 		{
-			Name:     "Activity",
-			WidthMax: tableSize.wMinMsg,
-		},
-		{
-			Name:        "Tags",
-			WidthMax:    tableSize.wMinTags,
-			Transformer: sliceTransformer,
+			Name:        "Deadline",
+			WidthMax:    tableSize.wMaxDate,
+			Transformer: dateTransformer,
 		},
 		{
 			Name:        "Responsible",
@@ -180,9 +189,13 @@ func createTable(opts programOpts, tableSize tableSize) (table.Writer, error) {
 			Transformer: sliceTransformer,
 		},
 		{
-			Name:        "Deadline",
-			WidthMax:    tableSize.wMaxDate,
-			Transformer: dateTransformer,
+			Name:        "Tags",
+			WidthMax:    tableSize.wMinTags,
+			Transformer: sliceTransformer,
+		},
+		{
+			Name:     "Activity",
+			WidthMax: tableSize.wMinMsg,
 		},
 	}
 
@@ -296,14 +309,15 @@ func getTodoTransformer(opts programOpts) func(val any) string {
 
 // calcTableSize calculates the size of the columns in the table based on parameters and the size of the terminal
 func calcTableSize(opts programOpts) (tableSize, error) {
-	terminalWidth, _, err := term.GetSize(0) // Get the current terminal size
-	if err != nil {
-		return tableSize{}, fmt.Errorf("error calculating tableSize: %v", err)
-	}
-
-	// Need enough space to give meaningful output
-	if terminalWidth < minTotalWidth {
-		return tableSize{}, fmt.Errorf("terminal too narrow for output (%d < %d)", terminalWidth, minTotalWidth)
+	var terminalWidth int
+	var err error
+	if opts.terminalWidth != 0 {
+		terminalWidth = opts.terminalWidth
+	} else {
+		terminalWidth, _, err = term.GetSize(0) // Get the current terminal size
+		if err != nil {
+			return tableSize{}, fmt.Errorf("error calculating tableSize: %v", err)
+		}
 	}
 
 	// Use file width if needed
@@ -326,7 +340,12 @@ func calcTableSize(opts programOpts) (tableSize, error) {
 
 	renderOverhead := (numberOfCols + 1) + (numberOfCols-1)*2 // Rendering overhead. Separators + padding
 	// Calculate the min width to use for the message column
-	minMessageWidth := minTotalWidth - maxDateWidth - maxResponisbleWidth - maxStatusWidth - minTagsWidth - renderOverhead
+	minMessageWidth := terminalWidth - maxDateWidth - maxResponisbleWidth - maxStatusWidth - minTagsWidth - renderOverhead
+
+	const smallestMsg = 10
+	if minMessageWidth < smallestMsg {
+		return tableSize{}, fmt.Errorf("too little space for message %d<%d", minMessageWidth, smallestMsg)
+	}
 
 	// The relative size of the dynamic columns to give to msg
 	const ratioMsg = 0.8
@@ -356,6 +375,7 @@ func parseFlags() programOpts {
 	flag.BoolVar(&opts.sortAsc, "a", true, "Sort [a]scending [true/false]")
 	flag.BoolVar(&opts.listFile, "l", true, "[L]ist file location in table")
 	flag.BoolVar(&opts.showVersion, "v", false, "Show current app version and exit")
+	flag.IntVar(&opts.terminalWidth, "w", 0, "Terminal [w]idth. 0 for auto")
 
 	var filterInput string
 	flag.StringVar(&filterInput, "i", "open,done,canceled", fmt.Sprintf("[I]nclude statuses. Multiple choices possible, delimit with ','. Allowed: %v", todoitem.GetAvailableStatuses()))
